@@ -3,11 +3,12 @@
 import { useMemo } from "react";
 import { ShieldAlert, FileText, Check, Circle, Clock, Lock } from "lucide-react";
 import {
-  staff as seedStaff, onboardingTasks, facilityName,
+  onboardingTasks, facilityName,
   ONBOARDING_STEP_LABELS, SUBMISSION_STATUS_LABELS,
   type OnboardingStepKey, type SubmissionStatus,
 } from "@poolops/shared";
 import { useAccess } from "@/lib/access";
+import { useTenantSeed } from "@/lib/tenant-data";
 import { useDemo } from "@/lib/store";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
@@ -24,6 +25,7 @@ const TAX_DOCS = ["W-4", "I-9", "State tax form", "Direct deposit", "Handbook ac
 
 export default function OnboardingPage() {
   const { can, staff: me } = useAccess();
+  const { staff: seedStaff } = useTenantSeed();
   const submissions = useDemo((s) => s.onboarding);
   const setStep = useDemo((s) => s.setOnboardingStep);
 
@@ -39,7 +41,7 @@ export default function OnboardingPage() {
   if (isAdmin) {
     const inProgress = seedStaff.filter((s) => s.onboardingComplete < 100);
     const blocked = seedStaff.filter((s) => s.statusFlags.includes("missing_forms"));
-    const avg = Math.round(seedStaff.reduce((a, s) => a + s.onboardingComplete, 0) / seedStaff.length);
+    const avg = seedStaff.length ? Math.round(seedStaff.reduce((a, s) => a + s.onboardingComplete, 0) / seedStaff.length) : 0;
 
     const columns: Column<typeof seedStaff[number]>[] = [
       { key: "name", header: "Staff", render: (s) => (
@@ -65,7 +67,8 @@ export default function OnboardingPage() {
         </div>
         {productionWarning}
         <SectionCard title="Completion tracker" subtitle={`${inProgress.length} staff still onboarding`}>
-          <DataTable columns={columns} rows={seedStaff} getKey={(s) => s.id} />
+          <DataTable columns={columns} rows={seedStaff} getKey={(s) => s.id}
+            empty={{ title: "No staff onboarded yet", description: "Invite your team from Users & Access to start tracking onboarding.", icon: "ClipboardList" }} />
         </SectionCard>
         <SectionCard title="Onboarding steps" subtitle="Required workflow for every new hire">
           <ol className="grid gap-3 sm:grid-cols-2">

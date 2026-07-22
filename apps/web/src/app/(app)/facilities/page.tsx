@@ -5,22 +5,25 @@ import {
   MapPin, Phone, Clock, Users, Waves, Pencil, ChevronRight,
 } from "lucide-react";
 import {
-  facilities as seedFacilities, pools, staffName, staffForFacility,
+  DEFAULT_CHEMICAL_RANGES, staffName, staffForFacility,
   POOL_TYPE_LABELS, type Facility,
 } from "@poolops/shared";
 import { useAccess } from "@/lib/access";
+import { useTenantSeed } from "@/lib/tenant-data";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge } from "@/components/ui/badge";
 import { Drawer, Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/field";
+import { EmptyState } from "@/components/ui/empty-state";
 import { facilityStatusMeta } from "@/lib/status";
 import { cn } from "@/lib/cn";
 
 export default function FacilitiesPage() {
   const { can } = useAccess();
-  const [list, setList] = useState<Facility[]>(seedFacilities);
+  const { facilities, pools } = useTenantSeed();
+  const [list, setList] = useState<Facility[]>(facilities);
   const [selected, setSelected] = useState<Facility | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [form, setForm] = useState({ name: "", address: "", capacity: "120", hours: "9:00 AM – 7:00 PM" });
@@ -34,10 +37,10 @@ export default function FacilitiesPage() {
     setList((l) => [
       ...l,
       {
-        id: `fac_${Date.now()}`, orgId: "org_tidetown", name: form.name, address: form.address || "—",
+        id: `fac_${Date.now()}`, orgId: "", name: form.name, address: form.address || "—",
         poolType: "leisure", operatingHours: form.hours, capacity: Number(form.capacity) || 100,
         emergencyPhone: "(555) 911-0000", status: "open",
-        chemicalRanges: seedFacilities[0].chemicalRanges, inspectionRequired: true, imageHint: "from-cyan-500 to-blue-600",
+        chemicalRanges: DEFAULT_CHEMICAL_RANGES, inspectionRequired: true, imageHint: "from-cyan-500 to-blue-600",
       },
     ]);
     setAddOpen(false);
@@ -58,6 +61,12 @@ export default function FacilitiesPage() {
         <StatCard label="In maintenance" value={maint} icon="Wrench" intent="warning" />
         <StatCard label="Total capacity" value={capacity.toLocaleString()} icon="Users" intent="info" />
       </div>
+
+      {list.length === 0 && (
+        <EmptyState icon="Building2" title="No facilities added yet"
+          description="Add your pool to start tracking chemistry, schedules, and staffing."
+          action={can("facilities.manage") ? <Button icon="Plus" onClick={() => setAddOpen(true)}>Add facility</Button> : undefined} />
+      )}
 
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         {list.map((f) => {

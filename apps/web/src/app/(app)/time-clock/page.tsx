@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { Clock, MapPin, Play, Square, AlertTriangle, Download } from "lucide-react";
 import {
-  facilities, getStaff, staffName, facilityName, formatTime, formatHours, shiftDuration,
+  getStaff, staffName, facilityName, formatTime, formatHours, shiftDuration,
 } from "@poolops/shared";
 import { useAccess } from "@/lib/access";
 import { useDemo } from "@/lib/store";
+import { useTenantSeed } from "@/lib/tenant-data";
 import { downloadCSV } from "@/lib/csv";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
@@ -29,9 +30,10 @@ const STATUS_BADGE: Record<TimeClockEntry["status"], { label: string; intent: "s
 
 export default function TimeClockPage() {
   const { can, staff: me, facilityId } = useAccess();
+  const { facilities } = useTenantSeed();
   const clock = useDemo((s) => s.clock);
   const toggleClock = useDemo((s) => s.toggleClock);
-  const [facility, setFacility] = useState(me?.homeFacilityId ?? facilities[0].id);
+  const [facility, setFacility] = useState(me?.homeFacilityId ?? facilities[0]?.id ?? "");
 
   const isManager = can("timeclock.manage");
   const myEntry = clock.find((e) => e.staffId === me?.id && (e.status === "clocked_in" || e.status === "late"));

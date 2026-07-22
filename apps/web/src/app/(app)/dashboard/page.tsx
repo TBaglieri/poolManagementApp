@@ -2,16 +2,16 @@
 
 import Link from "next/link";
 import {
-  CalendarClock, CalendarX2, ClipboardCheck, Users, FlaskConical, BadgeCheck,
-  Wrench, GraduationCap, Megaphone, Wallet, ArrowRight, CheckCircle2, XCircle,
+  Wrench, Megaphone, Wallet, ArrowRight, CheckCircle2, XCircle, UserPlus,
 } from "lucide-react";
 import {
-  facilities, staff as allStaff, staffCertifications, lessonClasses, organization,
-  shifts as seedShifts, getStaff, staffName, facilityName, dateKey, format24h,
+  getStaff, staffName, facilityName, dateKey, format24h,
   relativeTime, daysUntil, CERT_TYPE_LABELS,
 } from "@poolops/shared";
-import { useAccess } from "@/lib/access";
+import { useAccess, useDisplayName } from "@/lib/access";
 import { useDemo } from "@/lib/store";
+import { useTenantSeed } from "@/lib/tenant-data";
+import { useTenantConfig, useModuleEnabled } from "@/lib/tenant/provider";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { SectionCard } from "@/components/ui/section-card";
@@ -28,8 +28,19 @@ function greeting() {
   return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
 }
 
+/** A small, on-brand empty state used inside dashboard widgets. */
+function Empty({ children }: { children: React.ReactNode }) {
+  return <p className="py-6 text-center text-sm text-slate-400 dark:text-slate-500">{children}</p>;
+}
+
 export default function DashboardPage() {
-  const { staff: me, facilityId, roleMeta, role } = useAccess();
+  const { staff: me, facilityId, roleMeta } = useAccess();
+  const displayName = useDisplayName();
+  const config = useTenantConfig();
+  // Reference data is tenant-scoped: bundled sample data ONLY in the demo tenant,
+  // empty for a real tenant (so nothing demo/sample ever shows here).
+  const { facilities, staff: allStaff, staffCertifications, lessonClasses } = useTenantSeed();
+
   const timeOff = useDemo((s) => s.timeOff);
   const trades = useDemo((s) => s.trades);
   const issues = useDemo((s) => s.issues);
@@ -41,13 +52,16 @@ export default function DashboardPage() {
   const reviewTimeOff = useDemo((s) => s.reviewTimeOff);
   const reviewTrade = useDemo((s) => s.reviewTrade);
 
+  const lessonsOn = useModuleEnabled("lessons");
+  const payrollOn = useModuleEnabled("payroll");
+
   const facMatch = (fid: string) => facilityId === "all" || fid === facilityId;
   const todayKey = dateKey(new Date());
 
-  const todayShiftAll = shifts;
-  const todaysShifts = todayShiftAll.filter((s) => s.date === todayKey && facMatch(s.facilityId));
-  const openShifts = todayShiftAll.filter((s) => s.status === "open" && facMatch(s.facilityId));
-  const coverage = todaysShifts.length ? Math.round((todaysShifts.filter((s) => s.assignedStaffId).length / todaysShifts.length) * 100) : 100;
+  const todaysShifts = shifts.filter((s) => s.date === todayKey && facMatch(s.facilityId));
+  const openShifts = shifts.filter((s) => s.status === "open" && facMatch(s.facilityId));
+  const hasShifts = todaysShifts.length > 0;
+  const coverage = hasShifts ? Math.round((todaysShifts.filter((s) => s.assignedStaffId).length / todaysShifts.length) * 100) : null;
   const clockedIn = clock.filter((e) => (e.status === "clocked_in" || e.status === "late") && facMatch(e.facilityId));
   const pendingTimeOff = timeOff.filter((r) => r.status === "pending");
   const pendingTrades = trades.filter((t) => t.status === "pending");
@@ -57,7 +71,7 @@ export default function DashboardPage() {
   const openIssues = issues.filter((i) => i.status !== "resolved" && facMatch(i.facilityId));
   const onboardingStaff = allStaff.filter((s) => s.onboardingComplete < 100 && facMatch(s.homeFacilityId));
 
-  const patronFacility = facilityId === "all" ? facilities[0].id : facilityId;
+  const patronFacility = facilityId === "all" ? facilities[0]?.id : facilityId;
   const patronData = patron
     .filter((p) => p.facilityId === patronFacility && p.timeSlot.includes(":") && new Date(p.recordedAt).toDateString() === new Date().toDateString())
     .sort((a, b) => a.timeSlot.localeCompare(b.timeSlot))
@@ -65,23 +79,24 @@ export default function DashboardPage() {
 
   const announcements = messages.filter((m) => m.channelId === "ch_all").slice(-3).reverse();
   const upcomingLessons = lessonClasses.filter((l) => facMatch(l.facilityId)).slice(0, 4);
+  const orgLabel = facilityId === "all" ? config.displayName : facilityName(facilityId);
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`${greeting()}, ${me?.firstName ?? "there"} 👋`}
-        subtitle={`Here's what's happening across ${facilityId === "all" ? organization.name : facilityName(facilityId)} today.`}
+        title={`${greeting()}, ${displayName} 👋`}
+        subtitle={`Here's what's happening across ${orgLabel} today.`}
         actions={roleMeta && <RoleBadge role={roleMeta.slug} />}
       />
 
       {/* KPI row */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Today's coverage" value={`${coverage}%`} icon="ShieldCheck"
-          intent={coverage >= 90 ? "success" : coverage >= 70 ? "warning" : "danger"}
-          hint={`${todaysShifts.filter((s) => s.assignedStaffId).length}/${todaysShifts.length} shifts filled`} />
-        <StatCard label="Open shifts" value={openShifts.length} icon="CalendarX2" intent="warning" hint="This week" />
-        <StatCard label="Pending approvals" value={pendingTimeOff.length + pendingTrades.length} icon="Inbox" intent="info" hint="Time-off + trades" />
-        <StatCard label="Clocked in now" value={clockedIn.length} icon="Clock" intent="brand" hint="Across facilities" />
+        <StatCard label="Today's coverage" value={coverage === null ? "—" : `${coverage}%`} icon="ShieldCheck"
+          intent={coverage === null ? "neutral" : coverage >= 90 ? "success" : coverage >= 70 ? "warning" : "danger"}
+          hint={hasShifts ? `${todaysShifts.filter((s) => s.assignedStaffId).length}/${todaysShifts.length} shifts filled` : "No shifts scheduled yet"} />
+        <StatCard label="Open shifts" value={openShifts.length} icon="CalendarX2" intent={openShifts.length ? "warning" : "neutral"} hint={openShifts.length ? "This week" : "None yet"} />
+        <StatCard label="Pending approvals" value={pendingTimeOff.length + pendingTrades.length} icon="Inbox" intent={pendingTimeOff.length + pendingTrades.length ? "info" : "neutral"} hint={pendingTimeOff.length + pendingTrades.length ? "Time-off + trades" : "Nothing pending"} />
+        <StatCard label="Clocked in now" value={clockedIn.length} icon="Clock" intent={clockedIn.length ? "brand" : "neutral"} hint={clockedIn.length ? "On shift" : "No one clocked in"} />
       </div>
 
       {chemWarn.length > 0 && (
@@ -95,33 +110,37 @@ export default function DashboardPage() {
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Patron trend */}
         <SectionCard className="lg:col-span-2" title="Patron count trend"
-          subtitle={`${facilityName(patronFacility)} · today by the hour`}
+          subtitle={patronFacility ? `${facilityName(patronFacility)} · today by the hour` : "Today by the hour"}
           actions={<Link href="/patron-counts" className="text-sm font-medium text-brand-700 hover:text-brand-800">Details</Link>}>
           {patronData.length > 0 ? (
             <TrendArea data={patronData} xKey="slot" yKey="count" name="Patrons" />
           ) : (
-            <p className="py-10 text-center text-sm text-slate-400">No counts logged yet today.</p>
+            <Empty>No chemical or patron data yet — it'll appear here once your team starts logging.</Empty>
           )}
         </SectionCard>
 
         {/* Facility status */}
         <SectionCard title="Facility status" subtitle="Live operations"
           actions={<Link href="/facilities" className="text-sm font-medium text-brand-700 hover:text-brand-800">All</Link>}>
-          <ul className="space-y-3">
-            {facilities.filter((f) => facMatch(f.id)).map((f) => {
-              const meta = facilityStatusMeta(f.status);
-              const here = clock.filter((e) => e.facilityId === f.id && (e.status === "clocked_in" || e.status === "late")).length;
-              return (
-                <li key={f.id} className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-slate-800">{f.name}</p>
-                    <p className="text-xs text-slate-400">{here} clocked in · {staffName(f.managerId)}</p>
-                  </div>
-                  <StatusBadge {...meta} />
-                </li>
-              );
-            })}
-          </ul>
+          {facilities.filter((f) => facMatch(f.id)).length === 0 ? (
+            <Empty>No facilities added yet.</Empty>
+          ) : (
+            <ul className="space-y-3">
+              {facilities.filter((f) => facMatch(f.id)).map((f) => {
+                const meta = facilityStatusMeta(f.status);
+                const here = clock.filter((e) => e.facilityId === f.id && (e.status === "clocked_in" || e.status === "late")).length;
+                return (
+                  <li key={f.id} className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200">{f.name}</p>
+                      <p className="text-xs text-slate-400">{here} clocked in · {staffName(f.managerId)}</p>
+                    </div>
+                    <StatusBadge {...meta} />
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </SectionCard>
 
         {/* Pending approvals */}
@@ -129,14 +148,14 @@ export default function DashboardPage() {
           <SectionCard title="Pending approvals" subtitle="Time-off & shift trades"
             actions={<Link href="/schedule" className="text-sm font-medium text-brand-700 hover:text-brand-800">Queue</Link>}>
             {pendingTimeOff.length + pendingTrades.length === 0 ? (
-              <p className="py-6 text-center text-sm text-slate-400">All caught up — no pending requests.</p>
+              <Empty>Nothing pending.</Empty>
             ) : (
               <ul className="space-y-2.5">
                 {pendingTimeOff.slice(0, 3).map((r) => (
-                  <li key={r.id} className="flex items-center gap-3 rounded-lg border border-slate-100 p-2.5">
+                  <li key={r.id} className="flex items-center gap-3 rounded-lg border border-slate-100 p-2.5 dark:border-slate-800">
                     <StaffAvatar name={staffName(r.staffId)} color={getStaff(r.staffId)?.avatarColor ?? "#0E7490"} size="sm" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-slate-800">{staffName(r.staffId)}</p>
+                      <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200">{staffName(r.staffId)}</p>
                       <p className="truncate text-xs text-slate-400">Time off · {r.reason}</p>
                     </div>
                     <button onClick={() => reviewTimeOff(r.id, "approved", me?.id ?? "")} className="rounded-md p-1.5 text-emerald-600 hover:bg-emerald-50" title="Approve"><CheckCircle2 className="h-4 w-4" /></button>
@@ -144,10 +163,10 @@ export default function DashboardPage() {
                   </li>
                 ))}
                 {pendingTrades.slice(0, 2).map((t) => (
-                  <li key={t.id} className="flex items-center gap-3 rounded-lg border border-slate-100 p-2.5">
+                  <li key={t.id} className="flex items-center gap-3 rounded-lg border border-slate-100 p-2.5 dark:border-slate-800">
                     <StaffAvatar name={staffName(t.requestedBy)} color={getStaff(t.requestedBy)?.avatarColor ?? "#0E7490"} size="sm" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-slate-800">{staffName(t.requestedBy)}</p>
+                      <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200">{staffName(t.requestedBy)}</p>
                       <p className="truncate text-xs text-slate-400">Trade · {t.requestedTo ? `to ${staffName(t.requestedTo)}` : "open"}</p>
                     </div>
                     <button onClick={() => reviewTrade(t.id, "approved")} className="rounded-md p-1.5 text-emerald-600 hover:bg-emerald-50" title="Approve"><CheckCircle2 className="h-4 w-4" /></button>
@@ -163,37 +182,49 @@ export default function DashboardPage() {
         <PermissionGate anyOf={["certifications.view", "chemicals.view"]}>
           <SectionCard title="Compliance watch" subtitle="Certifications & chemicals"
             actions={<Link href="/certifications" className="text-sm font-medium text-brand-700 hover:text-brand-800">All</Link>}>
-            <ul className="space-y-2.5">
-              {certRisk.slice(0, 4).map((c) => {
-                const meta = certStatusMeta(c.status);
-                const d = c.expiresDate ? daysUntil(c.expiresDate) : null;
-                return (
-                  <li key={c.id} className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-slate-800">{staffName(c.staffId)}</p>
-                      <p className="truncate text-xs text-slate-400">{CERT_TYPE_LABELS[c.type]}{d !== null && ` · ${d < 0 ? `${Math.abs(d)}d overdue` : `${d}d left`}`}</p>
-                    </div>
-                    <StatusBadge {...meta} />
-                  </li>
-                );
-              })}
-              {certRisk.length === 0 && <p className="py-4 text-center text-sm text-slate-400">All certifications current.</p>}
-            </ul>
+            {allStaff.length === 0 ? (
+              <Empty>No chemical readings logged yet.</Empty>
+            ) : certRisk.length === 0 ? (
+              <Empty>All certifications current.</Empty>
+            ) : (
+              <ul className="space-y-2.5">
+                {certRisk.slice(0, 4).map((c) => {
+                  const meta = certStatusMeta(c.status);
+                  const d = c.expiresDate ? daysUntil(c.expiresDate) : null;
+                  return (
+                    <li key={c.id} className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200">{staffName(c.staffId)}</p>
+                        <p className="truncate text-xs text-slate-400">{CERT_TYPE_LABELS[c.type]}{d !== null && ` · ${d < 0 ? `${Math.abs(d)}d overdue` : `${d}d left`}`}</p>
+                      </div>
+                      <StatusBadge {...meta} />
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </SectionCard>
         </PermissionGate>
 
         {/* Onboarding */}
         <PermissionGate anyOf={["onboarding.view"]}>
           <SectionCard title="Onboarding in progress" subtitle={`${onboardingStaff.length} staff`}
-            actions={<Link href="/onboarding" className="text-sm font-medium text-brand-700 hover:text-brand-800">Manage</Link>}>
-            {onboardingStaff.length === 0 ? (
-              <p className="py-6 text-center text-sm text-slate-400">Everyone is fully onboarded 🎉</p>
+            actions={<Link href="/settings/users" className="text-sm font-medium text-brand-700 hover:text-brand-800">Users</Link>}>
+            {allStaff.length === 0 ? (
+              <div className="py-6 text-center">
+                <p className="text-sm text-slate-400 dark:text-slate-500">No staff onboarded yet.</p>
+                <Link href="/settings/users" className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:text-brand-800">
+                  <UserPlus className="h-4 w-4" /> Invite your team from Users &amp; Access
+                </Link>
+              </div>
+            ) : onboardingStaff.length === 0 ? (
+              <Empty>Everyone is fully onboarded 🎉</Empty>
             ) : (
               <ul className="space-y-3">
                 {onboardingStaff.slice(0, 4).map((s) => (
                   <li key={s.id}>
                     <div className="flex items-center justify-between text-sm">
-                      <span className="flex items-center gap-2 font-medium text-slate-700">
+                      <span className="flex items-center gap-2 font-medium text-slate-700 dark:text-slate-300">
                         {s.firstName} {s.lastName}
                         {s.isMinor && <span className="chip bg-amber-50 text-amber-700">Minor</span>}
                       </span>
@@ -211,19 +242,22 @@ export default function DashboardPage() {
         <PermissionGate anyOf={["maintenance.view"]}>
           <SectionCard title="Maintenance" subtitle={`${openIssues.length} open issues`}
             actions={<Link href="/maintenance" className="text-sm font-medium text-brand-700 hover:text-brand-800">Board</Link>}>
-            <ul className="space-y-2.5">
-              {openIssues.slice(0, 4).map((i) => (
-                <li key={i.id} className="flex items-start gap-2.5">
-                  <Wrench className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-slate-800">{i.title}</p>
-                    <p className="truncate text-xs text-slate-400">{facilityName(i.facilityId)} · {i.area}</p>
-                  </div>
-                  <StatusBadge {...priorityMeta(i.priority)} />
-                </li>
-              ))}
-              {openIssues.length === 0 && <p className="py-4 text-center text-sm text-slate-400">No open issues.</p>}
-            </ul>
+            {openIssues.length === 0 ? (
+              <Empty>Nothing reported yet.</Empty>
+            ) : (
+              <ul className="space-y-2.5">
+                {openIssues.slice(0, 4).map((i) => (
+                  <li key={i.id} className="flex items-start gap-2.5">
+                    <Wrench className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200">{i.title}</p>
+                      <p className="truncate text-xs text-slate-400">{facilityName(i.facilityId)} · {i.area}</p>
+                    </div>
+                    <StatusBadge {...priorityMeta(i.priority)} />
+                  </li>
+                ))}
+              </ul>
+            )}
           </SectionCard>
         </PermissionGate>
 
@@ -231,52 +265,70 @@ export default function DashboardPage() {
         <PermissionGate anyOf={["chat.view"]}>
           <SectionCard title="Recent announcements" subtitle="All-staff channel"
             actions={<Link href="/chat" className="text-sm font-medium text-brand-700 hover:text-brand-800">Open</Link>}>
-            <ul className="space-y-3">
-              {announcements.map((m) => (
-                <li key={m.id} className="flex gap-2.5">
-                  <Megaphone className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />
-                  <div className="min-w-0">
-                    <p className="text-sm text-slate-700 line-clamp-2">{m.body}</p>
-                    <p className="mt-0.5 text-xs text-slate-400">{staffName(m.senderId)} · {relativeTime(m.sentAt)}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            {announcements.length === 0 ? (
+              <Empty>No announcements yet.</Empty>
+            ) : (
+              <ul className="space-y-3">
+                {announcements.map((m) => (
+                  <li key={m.id} className="flex gap-2.5">
+                    <Megaphone className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />
+                    <div className="min-w-0">
+                      <p className="text-sm text-slate-700 line-clamp-2 dark:text-slate-300">{m.body}</p>
+                      <p className="mt-0.5 text-xs text-slate-400">{staffName(m.senderId)} · {relativeTime(m.sentAt)}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </SectionCard>
         </PermissionGate>
 
-        {/* Lessons */}
-        <PermissionGate anyOf={["lessons.view"]}>
-          <SectionCard title="Upcoming lessons" subtitle="Classes & rosters"
-            actions={<Link href="/lessons" className="text-sm font-medium text-brand-700 hover:text-brand-800">All</Link>}>
-            <ul className="space-y-2.5">
-              {upcomingLessons.map((l) => (
-                <li key={l.id} className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-slate-800">{l.name}</p>
-                    <p className="truncate text-xs text-slate-400">{l.dayOfWeek} · {format24h(l.start)} · {staffName(l.instructorId)}</p>
-                  </div>
-                  <span className="chip bg-slate-100 text-slate-600">{l.enrolled}/{l.capacity}</span>
-                </li>
-              ))}
-            </ul>
-          </SectionCard>
-        </PermissionGate>
+        {/* Lessons (only if the module is on for this tenant) */}
+        {lessonsOn && (
+          <PermissionGate anyOf={["lessons.view"]}>
+            <SectionCard title="Upcoming lessons" subtitle="Classes & rosters"
+              actions={<Link href="/lessons" className="text-sm font-medium text-brand-700 hover:text-brand-800">All</Link>}>
+              {upcomingLessons.length === 0 ? (
+                <Empty>No lessons scheduled yet.</Empty>
+              ) : (
+                <ul className="space-y-2.5">
+                  {upcomingLessons.map((l) => (
+                    <li key={l.id} className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200">{l.name}</p>
+                        <p className="truncate text-xs text-slate-400">{l.dayOfWeek} · {format24h(l.start)} · {staffName(l.instructorId)}</p>
+                      </div>
+                      <span className="chip bg-slate-100 text-slate-600">{l.enrolled}/{l.capacity}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </SectionCard>
+          </PermissionGate>
+        )}
 
-        {/* Payroll */}
-        <PermissionGate anyOf={["payroll.view"]}>
-          <SectionCard title="Payroll readiness" subtitle="Current pay period"
-            actions={<Link href="/payroll" className="text-sm font-medium text-brand-700 hover:text-brand-800">Open</Link>}>
-            <div className="flex items-center gap-3 rounded-lg bg-slate-50 p-3">
-              <Wallet className="h-8 w-8 text-brand-600" />
-              <div>
-                <p className="text-sm font-semibold text-slate-800">{missingForms.length} staff need review</p>
-                <p className="text-xs text-slate-400">Missing punches & overtime to confirm</p>
-              </div>
-            </div>
-            <Link href="/payroll" className="btn-secondary mt-3 w-full">Review timesheets <ArrowRight className="h-4 w-4" /></Link>
-          </SectionCard>
-        </PermissionGate>
+        {/* Payroll (only if the module is on for this tenant) */}
+        {payrollOn && (
+          <PermissionGate anyOf={["payroll.view"]}>
+            <SectionCard title="Payroll readiness" subtitle="Current pay period"
+              actions={<Link href="/payroll" className="text-sm font-medium text-brand-700 hover:text-brand-800">Open</Link>}>
+              {allStaff.length === 0 ? (
+                <Empty>No timesheets yet.</Empty>
+              ) : (
+                <>
+                  <div className="flex items-center gap-3 rounded-lg bg-slate-50 p-3 dark:bg-slate-900">
+                    <Wallet className="h-8 w-8 text-brand-600" />
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{missingForms.length} staff need review</p>
+                      <p className="text-xs text-slate-400">Missing punches &amp; overtime to confirm</p>
+                    </div>
+                  </div>
+                  <Link href="/payroll" className="btn-secondary mt-3 w-full">Review timesheets <ArrowRight className="h-4 w-4" /></Link>
+                </>
+              )}
+            </SectionCard>
+          </PermissionGate>
+        )}
       </div>
     </div>
   );

@@ -8,7 +8,8 @@ import { ROLE_LIST, getRole, isDemoTenant, type RoleSlug } from "@poolops/shared
 import { getEffectiveDataMode } from "@poolops/supabase";
 import { useSession } from "@/lib/session";
 import { useTenantConfig } from "@/lib/tenant/provider";
-import { signIn, signUp } from "@/lib/auth";
+import { resolveUserTenant } from "@/lib/tenant/user-tenant";
+import { signIn } from "@/lib/auth";
 import { Logo } from "@/components/brand";
 import { RoleBadge } from "@/components/ui/badge";
 
@@ -22,6 +23,8 @@ export default function LoginPage() {
   const router = useRouter();
   const enterDemo = useSession((s) => s.enterDemo);
   const loginReal = useSession((s) => s.loginReal);
+  const setUserName = useSession((s) => s.setUserName);
+  const setRealOrg = useSession((s) => s.setRealOrg);
   const config = useTenantConfig();
   const isDemo = isDemoTenant(config);
   const supabaseMode = getEffectiveDataMode() === "supabase";
@@ -50,17 +53,17 @@ export default function LoginPage() {
     }
     if (!email || !password) { setAuthError("Enter an email and password."); return; }
     setBusy(true);
-    const res = mode === "signin" ? await signIn(email, password) : await signUp(email, password);
+    const res = await signIn(email, password);
+    if (!res.ok) { setBusy(false); setAuthError(res.error); return; }
+
+    // Look up the tenant this account belongs to and drop the user straight into
+    // it (e.g. /villas/dashboard) — they never need to know or type the slug.
+    const ut = res.user ? await resolveUserTenant(res.user.id) : { slug: null, orgName: null, role: null, firstName: null };
     setBusy(false);
-    if (!res.ok) { setAuthError(res.error); return; }
-    if (res.needsConfirmation) {
-      setAuthInfo("Account created. Check your email to confirm, then sign in. (Tip: enable Auto-Confirm in Supabase → Auth → Providers → Email for instant local testing.)");
-      setMode("signin");
-      return;
-    }
-    // Real session. New customers go to org setup; returning ones to the dashboard.
-    loginReal(email, "org_admin", mode === "signin");
-    router.push(mode === "signup" ? "/setup" : "/dashboard");
+    loginReal(email, ut.role ?? "org_admin", true);
+    setUserName(ut.firstName ?? (email.includes("@") ? email.split("@")[0] : email));
+    if (ut.orgName) setRealOrg(ut.orgName, "small");
+    router.push(ut.slug ? `/${ut.slug}/dashboard` : "/dashboard");
   };
 
   const others = ROLE_LIST.filter((r) => !FEATURED.includes(r.slug));

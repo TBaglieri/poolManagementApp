@@ -7,8 +7,10 @@ import { resolveTenantConfig, safeResolveTenantConfig, deepMerge, resolveThemeVa
 import { getTenantConfig, isKnownTenant } from "./registry";
 import { isModuleEnabled, isFeatureEnabled, isPathEnabled } from "./flags";
 import { resolveRoleShortLabel, isRoleActive, activeRoleList } from "./roles";
+import { isDemoTenant, KNOWN_TENANT_SLUGS } from "./registry";
 import { HUDSON_THEME, THEME_PRESETS } from "./presets";
 import { DEFAULT_BRAND_SCALE } from "./defaults";
+import { ALL_NAV_ITEMS } from "../rbac/nav";
 
 describe("color math", () => {
   it("computes known WCAG extremes", () => {
@@ -162,5 +164,33 @@ describe("per-tenant active roles", () => {
 
   it("super_admin (platform owner) is always active regardless of tenant", () => {
     expect(isRoleActive(villas, "super_admin")).toBe(true);
+  });
+});
+
+describe("Bug 1 — login routes a user to their tenant", () => {
+  it("maps a real org display name back to its tenant slug", () => {
+    // resolveUserTenant() uses this: org name → slug when there's no slug column.
+    const slugForName = (name: string) =>
+      KNOWN_TENANT_SLUGS.find((s) => getTenantConfig(s).displayName.toLowerCase() === name.toLowerCase()) ?? null;
+    expect(slugForName("Villas on the Ridge")).toBe("villas");
+    expect(slugForName("Tide & Town Aquatics")).toBe("tidetown");
+    expect(slugForName("Some Unknown Pool")).toBeNull();
+  });
+});
+
+describe("Bug 3 — mobile preview is demo-only", () => {
+  const mobilePreview = ALL_NAV_ITEMS.find((i) => i.href === "/m/home");
+
+  it("the Mobile preview nav item is flagged demoOnly", () => {
+    expect(mobilePreview?.demoOnly).toBe(true);
+  });
+
+  it("filtering hides demo-only items for a real tenant, shows them in demo", () => {
+    const villas = getTenantConfig("villas");
+    const demo = getTenantConfig("demo");
+    const visibleFor = (cfg: ReturnType<typeof getTenantConfig>) =>
+      ALL_NAV_ITEMS.filter((i) => !i.demoOnly || isDemoTenant(cfg)).map((i) => i.href);
+    expect(visibleFor(villas)).not.toContain("/m/home");
+    expect(visibleFor(demo)).toContain("/m/home");
   });
 });

@@ -7,6 +7,8 @@ export interface NavItem {
   icon: string;
   /** Visible if the current role has ANY of these. Empty = always visible. */
   anyOf: PermissionKey[];
+  /** Demo-only affordance — never shown in a real tenant (e.g. the mobile preview). */
+  demoOnly?: boolean;
 }
 
 export interface NavSection {
@@ -19,7 +21,7 @@ export const NAV_SECTIONS: NavSection[] = [
     title: "Overview",
     items: [
       { label: "Dashboard", href: "/dashboard", icon: "LayoutDashboard", anyOf: ["dashboard.view"] },
-      { label: "Mobile preview", href: "/m/home", icon: "Smartphone", anyOf: [] },
+      { label: "Mobile preview", href: "/m/home", icon: "Smartphone", anyOf: [], demoOnly: true },
     ],
   },
   {

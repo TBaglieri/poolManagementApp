@@ -34,3 +34,16 @@ export function useAccess() {
 export function useHydrated(): boolean {
   return useSession((s) => s.hydrated);
 }
+
+/**
+ * The current user's first-name/label for greetings — real profile name in real
+ * mode (never a demo staff identity), demo staff first name in demo mode.
+ */
+export function useDisplayName(): string {
+  const mode = useSession((s) => s.mode);
+  const userName = useSession((s) => s.userName);
+  const email = useSession((s) => s.email);
+  const staffId = useSession((s) => s.staffId);
+  if (mode === "real") return userName || (email ? email.split("@")[0] : "") || "there";
+  return getStaff(staffId)?.firstName ?? "there";
+}

@@ -2,10 +2,11 @@
 
 import { useMemo } from "react";
 import {
-  patronCounts, facilities, chemicalLogs, staffCertifications, maintenanceIssues,
-  payrollReviews, shifts, facilityName, isoOffset, formatShortDate,
+  patronCounts as seedPatron, chemicalLogs as seedChem, maintenanceIssues as seedMaint,
+  payrollReviews as seedPayroll, shifts as seedShifts, facilityName, isoOffset, formatShortDate,
 } from "@poolops/shared";
 import { useAccess } from "@/lib/access";
+import { useTenantSeed } from "@/lib/tenant-data";
 import { PageHeader } from "@/components/ui/page-header";
 import { SectionCard } from "@/components/ui/section-card";
 import { StatCard } from "@/components/ui/stat-card";
@@ -16,6 +17,14 @@ const FAC_COLORS = ["#0891B2", "#0d9488", "#2563eb", "#0ea5e9"];
 
 export default function ReportsPage() {
   const { can } = useAccess();
+  // All report data is demo/sample — empty for a real tenant (charts render empty).
+  const { demo, facilities: tenantFacilities, staffCertifications } = useTenantSeed();
+  const facilities = tenantFacilities;
+  const patronCounts = demo ? seedPatron : [];
+  const chemicalLogs = demo ? seedChem : [];
+  const maintenanceIssues = demo ? seedMaint : [];
+  const payrollReviews = demo ? seedPayroll : [];
+  const shifts = demo ? seedShifts : [];
 
   const patronTrend = useMemo(() => {
     // Maplewood prior-week daily peaks for the trend chart.
@@ -55,14 +64,18 @@ export default function ReportsPage() {
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Scheduled hours" value={Math.round(totalHours)} icon="Clock" intent="brand" hint="Current pay period" />
-        <StatCard label="Avg coverage" value={`${Math.round(facilityCoverage.reduce((s, f) => s + f.coverage, 0) / facilityCoverage.length)}%`} icon="ShieldCheck" intent="success" />
+        <StatCard label="Avg coverage" value={`${facilityCoverage.length ? Math.round(facilityCoverage.reduce((s, f) => s + f.coverage, 0) / facilityCoverage.length) : 0}%`} icon="ShieldCheck" intent="success" />
         <StatCard label="Open issues" value={openIssues} icon="Wrench" intent={openIssues > 3 ? "warning" : "info"} />
         <StatCard label="Chem readings flagged" value={outOfRange} icon="FlaskConical" intent={outOfRange > 0 ? "warning" : "success"} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <SectionCard title="Patron attendance trend" subtitle="Maplewood · last 6 days">
-          <TrendArea data={patronTrend} xKey="day" yKey="count" name="Peak patrons" height={240} />
+        <SectionCard title="Patron attendance trend" subtitle="Last 6 days">
+          {patronTrend.length > 0 ? (
+            <TrendArea data={patronTrend} xKey="day" yKey="count" name="Peak patrons" height={240} />
+          ) : (
+            <p className="py-16 text-center text-sm text-slate-400">No patron data yet.</p>
+          )}
         </SectionCard>
         <SectionCard title="Coverage by facility" subtitle="Filled vs total shifts">
           <SimpleBar data={facilityCoverage} xKey="facility" yKey="coverage" name="Coverage %" height={240} />

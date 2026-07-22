@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogOut, ChevronRight } from "lucide-react";
-import { NAV_SECTIONS, isModuleEnabled, moduleForPath } from "@poolops/shared";
-import { useAccess } from "@/lib/access";
+import { NAV_SECTIONS, isModuleEnabled, isDemoTenant, moduleForPath } from "@poolops/shared";
+import { useAccess, useDisplayName } from "@/lib/access";
 import { useSession } from "@/lib/session";
 import { useTenantConfig, useRoleShortLabel } from "@/lib/tenant/provider";
 import { TenantWordmark } from "@/components/theme/tenant-brand";
@@ -16,13 +16,17 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { canAny, staff, role } = useAccess();
   const config = useTenantConfig();
+  const demo = isDemoTenant(config);
   const roleLabel = useRoleShortLabel(role);
+  const displayName = useDisplayName();
+  const fullName = staff ? `${staff.firstName} ${staff.lastName}` : displayName;
   const logout = useSession((s) => s.logout);
 
-  // Filter by BOTH permission and whether the owning module is enabled for the tenant.
+  // Filter by permission, whether the owning module is enabled, and demo-only gating.
   const sections = NAV_SECTIONS.map((s) => ({
     ...s,
     items: s.items.filter((i) => {
+      if (i.demoOnly && !demo) return false; // demo-only affordance, real tenant → hide
       const permitted = i.anyOf.length === 0 || canAny(i.anyOf);
       const mod = moduleForPath(i.href);
       const moduleOn = mod ? isModuleEnabled(config, mod.id) : true;
@@ -69,13 +73,13 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         ))}
       </nav>
 
-      {/* User footer */}
+      {/* User footer — real profile name for real users, demo staff name in demo. */}
       <div className="border-t border-white/10 p-3">
-        {staff && (
+        {role && (
           <div className="flex items-center gap-2.5 rounded-lg px-2 py-2">
-            <StaffAvatar name={`${staff.firstName} ${staff.lastName}`} color={staff.avatarColor} size="sm" />
+            <StaffAvatar name={fullName} color={staff?.avatarColor ?? "#0E7490"} size="sm" />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-white">{staff.firstName} {staff.lastName}</p>
+              <p className="truncate text-sm font-medium text-white">{fullName}</p>
               <p className="truncate text-xs text-white/45">{roleLabel}</p>
             </div>
             <Link href="/login" onClick={() => { logout(); onNavigate?.(); }} className="rounded-md p-1.5 text-white/40 hover:bg-white/10 hover:text-white" title="Sign out">

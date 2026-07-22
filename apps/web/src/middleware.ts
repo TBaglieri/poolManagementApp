@@ -76,6 +76,13 @@ export function middleware(req: NextRequest) {
   // The route to gate/serve is the de-prefixed path when the tenant came from the URL.
   const effectivePath = resolution.strippedPath ?? pathname;
 
+  // The /m/* mobile-preview surface is a demo-only feature — block it for real tenants.
+  if (effectivePath.startsWith("/m/") && slug !== DEMO_TENANT_SLUG) {
+    const res = NextResponse.redirect(new URL("/dashboard", req.url));
+    res.cookies.set("tenant", slug, { path: "/", sameSite: "lax" });
+    return res;
+  }
+
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-tenant-slug", slug);
 

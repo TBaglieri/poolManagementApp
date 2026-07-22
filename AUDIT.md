@@ -150,6 +150,43 @@ Changes made to existing tenant/auth code so `https://<app>.vercel.app/villas` w
   live end-to-end (org upsert; admin user → profile → org membership → staff row;
   idempotent re-provision; cleaned up).
 
+## 4d. Why demo data leaked into real tenants (root cause) + the fix
+
+Three related bugs, one root cause: **the app was built demo-first.** Every page
+read operational data from a Zustand store (`lib/store.ts`) that was *pre-seeded* at
+import with the bundled "Tide & Town" dataset, and read reference data (facilities,
+staff, certs, lessons) by importing the seed arrays from `@poolops/shared`
+*directly in the component*. Nothing was tenant-scoped, so a real tenant rendered
+demo facilities (Maplewood/Riverbend), demo staff (Marcus Reyes), fake coverage %,
+etc. Fixes:
+
+- **Bug 2 (demo data leak).** The store now starts **empty**; the bundled dataset
+  loads **only** for the gated demo tenant, via a `seedDemo()` action driven by a
+  `DemoSeeder` mounted in the shell (real tenants stay empty; Supabase hydration
+  fills real data when present). Reference data now flows through `useTenantSeed()`
+  (`lib/tenant-data.ts` + pure `lib/tenant-seed.ts`), which returns the demo dataset
+  only for the demo tenant and **empty arrays otherwise**. The dashboard and the
+  team/ops pages (staff, facilities, chemicals, time-clock, certifications,
+  onboarding, payroll, documents, reports) were migrated to it, with **designed
+  empty states** and guards for the `seed[0]` / divide-by-zero crashes that empty
+  data would otherwise trigger. The hardcoded "Tide & Town" fallback in
+  `user-context.ts` and the `org_tidetown` id in the facilities add-form were removed.
+- **Bug 1 (login didn't route to the tenant).** After sign-in, `resolveUserTenant()`
+  (`lib/tenant/user-tenant.ts`) reads the user's active org membership and maps it to
+  a tenant slug (org `slug` column, or display-name→registry fallback); login then
+  routes to `/<slug>/dashboard` and stores the real profile name + org on the
+  session. Identity now comes from the real user (`useDisplayName()`) + tenant config
+  (`displayName`), never a demo staff or hardcoded org name.
+- **Bug 3 (mobile preview in real tenants).** The "Mobile preview" nav item is
+  flagged `demoOnly` and filtered out of real tenants' sidebars, and the `/m/*`
+  routes are blocked server-side in middleware for any non-demo tenant.
+
+Tests added: real-tenant emptiness + no demo names + empty store (`tenant-leak.test.ts`),
+org-name→slug mapping (Bug 1), and demo-only nav filtering (Bug 3). Known follow-up:
+real staff/lifeguard users don't yet map their auth id to a `staff_profiles` row, so
+staff self-service (my-shifts, clock-as-self) still needs that link — separate from
+these bugs.
+
 ## 5. Known pre-existing gaps (not introduced here, noted for honesty)
 
 - Authorization is UI-level in the app; RLS is the real boundary. This work does not change auth/RLS (per the "don't push destructive/auth changes while away" rule).

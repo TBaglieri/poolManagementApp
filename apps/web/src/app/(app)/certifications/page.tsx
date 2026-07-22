@@ -3,11 +3,12 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, BellRing } from "lucide-react";
 import {
-  staffCertifications, staff as allStaff, getStaff, staffName, facilityName,
+  getStaff, staffName, facilityName,
   CERT_TYPE_LABELS, formatDate, daysUntil, uid,
   type StaffCertification, type CertificationType,
 } from "@poolops/shared";
 import { useAccess } from "@/lib/access";
+import { useTenantSeed } from "@/lib/tenant-data";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { SectionCard } from "@/components/ui/section-card";
@@ -28,6 +29,7 @@ function statusFromExpiry(expiresDate: string | undefined): StaffCertification["
 
 export default function CertificationsPage() {
   const { can } = useAccess();
+  const { staff: allStaff, staffCertifications } = useTenantSeed();
   const [statusF, setStatusF] = useState("all");
   const [typeF, setTypeF] = useState("all");
   const [certs, setCerts] = useState<StaffCertification[]>(staffCertifications);

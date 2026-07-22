@@ -3,11 +3,13 @@
 import { useMemo, useState } from "react";
 import { FlaskConical, AlertTriangle, CheckCircle2, Beaker } from "lucide-react";
 import {
-  facilities, pools, getFacility, staffName, facilityName, formatDateTime, formatTime,
+  getFacility, staffName, facilityName, formatDateTime, formatTime,
   CHEMICAL_FIELDS, type ChemicalLog,
 } from "@poolops/shared";
 import { useAccess } from "@/lib/access";
 import { useDemo } from "@/lib/store";
+import { useTenantSeed } from "@/lib/tenant-data";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { SectionCard } from "@/components/ui/section-card";
@@ -25,14 +27,15 @@ const CRITICAL_KEYS = ["freeChlorine", "combinedChlorine", "ph"];
 
 export default function ChemicalsPage() {
   const { can, staff: me, facilityId } = useAccess();
+  const { facilities, pools } = useTenantSeed();
   const chemicals = useDemo((s) => s.chemicals);
   const addLog = useDemo((s) => s.addChemicalLog);
 
   const [open, setOpen] = useState(false);
-  const [chartFacility, setChartFacility] = useState(facilities[0].id);
+  const [chartFacility, setChartFacility] = useState(facilities[0]?.id ?? "");
   const [result, setResult] = useState<string[] | null>(null);
   const [form, setForm] = useState({
-    facilityId: facilities[0].id, poolId: pools[0].id,
+    facilityId: facilities[0]?.id ?? "", poolId: pools[0]?.id ?? "",
     freeChlorine: "2.4", combinedChlorine: "0.2", ph: "7.5", alkalinity: "100",
     calciumHardness: "280", cyanuricAcid: "40", waterTemp: "82", notes: "", correctiveAction: "",
   });
@@ -75,7 +78,12 @@ export default function ChemicalsPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Chemical Logs" subtitle="Record water chemistry and keep an audit-ready history."
-        actions={can("chemicals.log") && <Button icon="FlaskConical" onClick={() => setOpen(true)}>Log reading</Button>} />
+        actions={can("chemicals.log") && facilities.length > 0 && <Button icon="FlaskConical" onClick={() => setOpen(true)}>Log reading</Button>} />
+
+      {facilities.length === 0 && (
+        <EmptyState icon="FlaskConical" title="No chemical readings logged yet"
+          description="Add a facility first, then log water chemistry to build an audit-ready history." />
+      )}
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Readings today" value={todayLogs.length} icon="FlaskConical" intent="brand" />

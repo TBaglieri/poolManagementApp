@@ -6,7 +6,7 @@ import {
   Sparkles, CalendarDays, CheckCircle2, XCircle, Smartphone, ArrowRight, Clock,
 } from "lucide-react";
 import {
-  facilities, getStaff, staffName, facilityName,
+  getStaff, staffName, facilityName,
   format24h, formatWeekday, formatShortDate, shiftDuration, SHIFT_POSITION_LABELS,
 } from "@poolops/shared";
 import { mondayOf } from "@poolops/scheduling";

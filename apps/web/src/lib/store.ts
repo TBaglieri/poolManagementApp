@@ -96,24 +96,48 @@ interface DemoState {
   /** Replace store slices with live Supabase data (used by SupabaseHydrator). */
   hydrate: (partial: Partial<Pick<DemoState,
     "messages" | "channels" | "chemicals" | "issues" | "notifications" | "clock" | "timeOff" | "trades" | "shifts">>) => void;
+  /** True once the bundled demo dataset has been loaded (demo tenant only). */
+  seeded: boolean;
+  /**
+   * Populate the store with the bundled demo dataset. Called ONLY in the demo
+   * tenant (see DemoSeeder). Real tenants keep every slice empty so nothing
+   * demo/sample ever renders in a real facility's views.
+   */
+  seedDemo: () => void;
+}
+
+/** The bundled demo dataset — loaded into the store ONLY for the demo tenant. */
+function demoSeed() {
+  return {
+    timeOff: clone(seedTimeOff), trades: clone(seedTrades), clock: clone(seedClock),
+    issues: clone(seedIssues), chemicals: clone(seedChem), messages: clone(seedMessages),
+    checklists: clone(seedChecklists), patron: clone(seedPatron), reports: clone(seedReports),
+    notifications: clone(seedNotifications), onboarding: clone(seedOnboarding),
+    channels: clone(seedChannels), shifts: clone(seedShifts),
+  };
 }
 
 export const useDemo = create<DemoState>((set, get) => ({
-  timeOff: clone(seedTimeOff),
-  trades: clone(seedTrades),
-  clock: clone(seedClock),
-  issues: clone(seedIssues),
-  chemicals: clone(seedChem),
-  messages: clone(seedMessages),
-  checklists: clone(seedChecklists),
-  patron: clone(seedPatron),
-  reports: clone(seedReports),
-  notifications: clone(seedNotifications),
-  onboarding: clone(seedOnboarding),
-  channels: clone(seedChannels),
+  // EMPTY by default — a real tenant shows empty states, never demo data. The demo
+  // tenant loads the bundled dataset via seedDemo() (see DemoSeeder).
+  timeOff: [],
+  trades: [],
+  clock: [],
+  issues: [],
+  chemicals: [],
+  messages: [],
+  checklists: [],
+  patron: [],
+  reports: [],
+  notifications: [],
+  onboarding: [],
+  channels: [],
   drafts: [],
-  shifts: clone(seedShifts),
+  shifts: [],
   scheduleSettings: { autoPostToAllTeam: true, allowStaffComments: true, notifyInApp: true, emailSms: false },
+  seeded: false,
+
+  seedDemo: () => set((s) => (s.seeded ? {} : { ...demoSeed(), seeded: true })),
 
   addDraft: (draft) => set((s) => ({ drafts: [draft, ...s.drafts.filter((d) => d.id !== draft.id)] })),
 

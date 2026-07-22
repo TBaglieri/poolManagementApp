@@ -8,6 +8,7 @@ import {
   type PayrollReview,
 } from "@poolops/shared";
 import { useAccess } from "@/lib/access";
+import { useTenantSeed } from "@/lib/tenant-data";
 import { downloadCSV } from "@/lib/csv";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
@@ -22,8 +23,12 @@ import { payrollStatusMeta } from "@/lib/status";
 
 export default function PayrollPage() {
   const { can } = useAccess();
-  const [periodId, setPeriodId] = useState(payPeriods[0].id);
-  const [reviews, setReviews] = useState<PayrollReview[]>(payrollReviews);
+  // Pay periods, reviews and exports are demo operational data — empty for real tenants.
+  const { demo } = useTenantSeed();
+  const periods = demo ? payPeriods : [];
+  const exports = demo ? payrollExports : [];
+  const [periodId, setPeriodId] = useState(demo ? payPeriods[0]?.id ?? "" : "");
+  const [reviews, setReviews] = useState<PayrollReview[]>(demo ? payrollReviews : []);
 
   if (!can("payroll.view")) {
     return <AccessRestricted message="Payroll is restricted to the payroll/payment team and admins. Lifeguards and operations staff can't access this page." />;
@@ -51,7 +56,7 @@ export default function PayrollPage() {
       estGross: grossFor(r).toFixed(2),
       status: PAYROLL_STATUS_LABELS[r.status],
     }));
-    const label = payPeriods.find((p) => p.id === periodId)?.label ?? "period";
+    const label = periods.find((p) => p.id === periodId)?.label ?? "period";
     downloadCSV(`payroll-${label.replace(/\s+/g, "-")}`, rows, [
       { key: "staff", label: "Staff" },
       { key: "facility", label: "Facility" },
@@ -86,7 +91,7 @@ export default function PayrollPage() {
         actions={
           <div className="flex items-center gap-2">
             <Select value={periodId} onChange={(e) => setPeriodId(e.target.value)} className="w-auto">
-              {payPeriods.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+              {periods.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
             </Select>
             {can("payroll.export") && <Button icon="Download" onClick={exportPayroll}>Export payroll</Button>}
           </div>
@@ -104,17 +109,18 @@ export default function PayrollPage() {
         Payroll figures are placeholders. Real payroll requires verified time records, approved timesheets, and an integration with your payroll provider (ADP, Gusto, Paychex). No real payments are processed.
       </div>
 
-      <SectionCard title="Timesheet review" subtitle={`Pay period ${payPeriods.find((p) => p.id === periodId)?.label}`}
+      <SectionCard title="Timesheet review" subtitle={`Pay period ${periods.find((p) => p.id === periodId)?.label}`}
         actions={can("payroll.manage") && <Button variant="secondary" size="sm" icon="Check" onClick={approveAllReady} disabled={readyToApprove === 0}>Approve all ready ({readyToApprove})</Button>}>
-        <DataTable columns={columns} rows={reviews} getKey={(r) => r.id} />
+        <DataTable columns={columns} rows={reviews} getKey={(r) => r.id}
+          empty={{ title: "No timesheets yet", description: "Timesheets appear once staff clock in and out.", icon: "Clock" }} />
       </SectionCard>
 
       <SectionCard title="Recent exports" subtitle="Payroll export history" icon={<FileSpreadsheet className="h-4 w-4 text-slate-400" />}>
         <ul className="divide-y divide-slate-100">
-          {payrollExports.map((e) => (
+          {exports.map((e) => (
             <li key={e.id} className="flex items-center justify-between py-3 text-sm">
               <div>
-                <p className="font-medium text-slate-800">{payPeriods.find((p) => p.id === e.payPeriodId)?.label} · {e.format.toUpperCase()}</p>
+                <p className="font-medium text-slate-800">{periods.find((p) => p.id === e.payPeriodId)?.label} · {e.format.toUpperCase()}</p>
                 <p className="text-xs text-slate-400">{e.rowCount} staff · by {staffName(e.createdBy)} · {formatDate(e.createdAt)}</p>
               </div>
               <Badge intent="neutral">Exported</Badge>

@@ -15,6 +15,8 @@ interface SessionState {
   staffId: ID | null;
   facilityId: ID | "all";
   email: string | null;
+  /** Real signed-in user's display name (from their profile). Null in demo mode. */
+  userName: string | null;
   mode: SessionMode;
   /** Set once a real user finishes org setup (drives setup redirect). */
   hasOrganization: boolean;
@@ -34,6 +36,8 @@ interface SessionState {
   setRealOrg: (name: string, plan: string) => void;
   setFacility: (id: ID | "all") => void;
   setEmail: (email: string | null) => void;
+  /** Set the real user's display name (from their profile). */
+  setUserName: (name: string | null) => void;
   /** Leave demo mode and return to the landing/login. */
   exitDemo: () => void;
   logout: () => void;
@@ -53,6 +57,7 @@ export const useSession = create<SessionState>()(
       staffId: null,
       facilityId: "all",
       email: null,
+      userName: null,
       mode: "demo",
       hasOrganization: false,
       orgName: null,
@@ -60,7 +65,7 @@ export const useSession = create<SessionState>()(
       hydrated: false,
 
       enterDemo: (role) =>
-        set({ role, staffId: DEMO_STAFF_BY_ROLE[role], facilityId: facilityForRole(role), mode: "demo", email: null, hasOrganization: true }),
+        set({ role, staffId: DEMO_STAFF_BY_ROLE[role], facilityId: facilityForRole(role), mode: "demo", email: null, userName: null, hasOrganization: true }),
       loginAs: (role) =>
         set({ role, staffId: DEMO_STAFF_BY_ROLE[role], facilityId: facilityForRole(role), mode: "demo", hasOrganization: true }),
       setRole: (role) =>
@@ -71,20 +76,21 @@ export const useSession = create<SessionState>()(
       setRealOrg: (orgName, plan) => set({ orgName, plan, hasOrganization: true }),
       setFacility: (facilityId) => set({ facilityId }),
       setEmail: (email) => set({ email }),
+      setUserName: (userName) => set({ userName }),
       exitDemo: () => {
         void supabaseSignOut();
-        set({ role: null, staffId: null, facilityId: "all", email: null, mode: "demo", hasOrganization: false, orgName: null, plan: null });
+        set({ role: null, staffId: null, facilityId: "all", email: null, userName: null, mode: "demo", hasOrganization: false, orgName: null, plan: null });
       },
       logout: () => {
         void supabaseSignOut();
-        set({ role: null, staffId: null, facilityId: "all", email: null, mode: "demo", hasOrganization: false, orgName: null, plan: null });
+        set({ role: null, staffId: null, facilityId: "all", email: null, userName: null, mode: "demo", hasOrganization: false, orgName: null, plan: null });
       },
       _setHydrated: () => set({ hydrated: true }),
     }),
     {
       name: "poolops-session",
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ role: s.role, staffId: s.staffId, facilityId: s.facilityId, email: s.email, mode: s.mode, hasOrganization: s.hasOrganization, orgName: s.orgName, plan: s.plan }),
+      partialize: (s) => ({ role: s.role, staffId: s.staffId, facilityId: s.facilityId, email: s.email, userName: s.userName, mode: s.mode, hasOrganization: s.hasOrganization, orgName: s.orgName, plan: s.plan }),
       onRehydrateStorage: () => (state) => state?._setHydrated(),
     },
   ),

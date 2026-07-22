@@ -3,9 +3,10 @@
 import { useMemo, useState } from "react";
 import { FileText, Lock, Download, CheckCircle2, Search, ShieldAlert } from "lucide-react";
 import {
-  documents, staffName, formatDate, DOCUMENT_CATEGORY_LABELS, type Document,
+  staffName, formatDate, DOCUMENT_CATEGORY_LABELS, type Document,
 } from "@poolops/shared";
 import { useAccess } from "@/lib/access";
+import { useTenantSeed } from "@/lib/tenant-data";
 import { PageHeader } from "@/components/ui/page-header";
 import { SectionCard } from "@/components/ui/section-card";
 import { AccessRestricted } from "@/components/ui/permission-gate";
@@ -19,6 +20,7 @@ const FILE_INTENT: Record<string, string> = {
 
 export default function DocumentsPage() {
   const { can, role } = useAccess();
+  const { documents } = useTenantSeed();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
 

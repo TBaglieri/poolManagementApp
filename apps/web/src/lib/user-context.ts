@@ -36,7 +36,7 @@ export async function getCurrentUserContext(): Promise<UserContext> {
     return {
       user: session.email ? { id: "demo", email: session.email } : null,
       profile: null,
-      organization: session.orgName ? { id: "demo", name: session.orgName } : { id: "org_tidetown", name: "Tide & Town Aquatics" },
+      organization: session.orgName ? { id: "demo", name: session.orgName } : null,
       organizationMember: role ? { roleSlug: role } : null,
       role,
       permissions: role ? [...resolvePermissions(role)] : [],

@@ -4,12 +4,13 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Search, Mail, Phone, Cake, Calendar, Shield } from "lucide-react";
 import {
-  staff as seedStaff, facilities, facilityName, certificationsForStaff,
+  facilityName, certificationsForStaff,
   EMPLOYMENT_STATUS_LABELS, CERT_TYPE_LABELS, formatDate, formatCurrency,
   type StaffProfile, type RoleSlug,
 } from "@poolops/shared";
 import { ROLE_LIST, getRole } from "@poolops/shared";
 import { useAccess } from "@/lib/access";
+import { useTenantSeed } from "@/lib/tenant-data";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { DataTable, type Column } from "@/components/ui/data-table";
@@ -24,6 +25,7 @@ import { staffFlagMeta, certStatusMeta } from "@/lib/status";
 
 export default function StaffPage() {
   const { can } = useAccess();
+  const { staff, facilities } = useTenantSeed();
   const [search, setSearch] = useState("");
   const [role, setRole] = useState<string>("all");
   const [facility, setFacility] = useState<string>("all");
@@ -31,7 +33,7 @@ export default function StaffPage() {
   const [selected, setSelected] = useState<StaffProfile | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
 
-  const filtered = useMemo(() => seedStaff.filter((s) => {
+  const filtered = useMemo(() => staff.filter((s) => {
     if (search && !`${s.firstName} ${s.lastName} ${s.email} ${s.title}`.toLowerCase().includes(search.toLowerCase())) return false;
     if (role !== "all" && s.primaryRole !== role) return false;
     if (facility !== "all" && !s.facilityIds.includes(facility)) return false;
@@ -67,7 +69,7 @@ export default function StaffPage() {
     <div className="space-y-6">
       <PageHeader
         title="Staff Directory"
-        subtitle={`${seedStaff.length} team members across ${facilities.length} facilities.`}
+        subtitle={`${staff.length} team members across ${facilities.length} facilities.`}
         actions={can("staff.invite") && (
           <>
             <Link href="/staff/invites" className="btn-secondary"><Mail className="h-4 w-4" /> Invites</Link>
@@ -77,10 +79,10 @@ export default function StaffPage() {
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Total staff" value={seedStaff.length} icon="Users" intent="brand" />
-        <StatCard label="Active" value={seedStaff.filter((s) => s.employmentStatus === "active").length} icon="UserCheck" intent="success" />
-        <StatCard label="Pending onboarding" value={seedStaff.filter((s) => s.statusFlags.includes("pending_onboarding")).length} icon="ClipboardList" intent="info" />
-        <StatCard label="Missing forms" value={seedStaff.filter((s) => s.statusFlags.includes("missing_forms")).length} icon="FileWarning" intent="warning" />
+        <StatCard label="Total staff" value={staff.length} icon="Users" intent="brand" />
+        <StatCard label="Active" value={staff.filter((s) => s.employmentStatus === "active").length} icon="UserCheck" intent="success" />
+        <StatCard label="Pending onboarding" value={staff.filter((s) => s.statusFlags.includes("pending_onboarding")).length} icon="ClipboardList" intent="info" />
+        <StatCard label="Missing forms" value={staff.filter((s) => s.statusFlags.includes("missing_forms")).length} icon="FileWarning" intent="warning" />
       </div>
 
       <div className="card overflow-hidden">
@@ -107,7 +109,9 @@ export default function StaffPage() {
           </Select>
         </div>
         <DataTable columns={columns} rows={filtered} getKey={(s) => s.id} onRowClick={setSelected}
-          empty={{ title: "No staff match your filters", icon: "Users" }} />
+          empty={staff.length === 0
+            ? { title: "No staff onboarded yet", description: "Invite your team from Users & Access.", icon: "Users" }
+            : { title: "No staff match your filters", icon: "Users" }} />
       </div>
 
       {/* Profile drawer */}
