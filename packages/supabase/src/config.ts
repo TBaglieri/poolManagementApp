@@ -29,10 +29,18 @@ export function getSupabaseAnonKey(): string {
   return (NEXT_ANON || EXPO_ANON || "").trim();
 }
 
-/** Raw requested mode from env (defaults to mock). */
+/**
+ * Requested data mode. Explicit env wins (`NEXT_PUBLIC_DATA_MODE` = `supabase` or
+ * `mock`). When UNSET, we default to `supabase` **if Supabase is actually configured**
+ * (URL + anon key present) and `mock` otherwise. This makes real auth the default for
+ * any real deployment — demo/mock is never the silent global default that overrides a
+ * real signed-in user. A zero-backend build still runs in mock so the demo works.
+ */
 export function getDataMode(): DataMode {
-  const raw = (NEXT_MODE || EXPO_MODE || "mock").trim().toLowerCase();
-  return raw === "supabase" ? "supabase" : "mock";
+  const raw = (NEXT_MODE || EXPO_MODE || "").trim().toLowerCase();
+  if (raw === "supabase") return "supabase";
+  if (raw === "mock") return "mock";
+  return isSupabaseConfigured() ? "supabase" : "mock";
 }
 
 export function isSupabaseConfigured(): boolean {

@@ -30,6 +30,12 @@ interface SessionState {
   orgName: string | null;
   plan: string | null;
   hydrated: boolean;
+  /**
+   * Whether the Supabase auth session has been checked for this load (real tenants
+   * in supabase mode). Until true, the shell waits instead of trusting a persisted
+   * (possibly stale demo) session. NOT persisted — re-checked every load.
+   */
+  authResolved: boolean;
 
   /** Enter DEMO mode as a role (role switcher / "Continue as demo X"). */
   enterDemo: (role: RoleSlug) => void;
@@ -39,6 +45,15 @@ interface SessionState {
   setRole: (role: RoleSlug) => void;
   /** Establish a REAL authenticated session (Supabase user). */
   loginReal: (email: string, role: RoleSlug, hasOrganization: boolean) => void;
+  /** Establish a REAL session in one shot from a reconciled Supabase user. */
+  applyRealSession: (p: {
+    email: string; role: RoleSlug; userName?: string | null;
+    staffProfileId?: ID | null; staffLinked?: boolean | null; orgName?: string | null; plan?: string | null;
+  }) => void;
+  /** Mark the auth-session check complete (nothing to reconcile / done). */
+  markAuthResolved: () => void;
+  /** Clear identity because there is no valid real session (redirects to login). */
+  invalidateSession: () => void;
   setHasOrganization: (v: boolean) => void;
   setRealOrg: (name: string, plan: string) => void;
   setFacility: (id: ID | "all") => void;
@@ -74,15 +89,25 @@ export const useSession = create<SessionState>()(
       orgName: null,
       plan: null,
       hydrated: false,
+      authResolved: false,
 
       enterDemo: (role) =>
-        set({ role, staffId: DEMO_STAFF_BY_ROLE[role], facilityId: facilityForRole(role), mode: "demo", email: null, userName: null, staffProfileId: null, staffLinked: null, hasOrganization: true }),
+        set({ role, staffId: DEMO_STAFF_BY_ROLE[role], facilityId: facilityForRole(role), mode: "demo", email: null, userName: null, staffProfileId: null, staffLinked: null, hasOrganization: true, authResolved: true }),
       loginAs: (role) =>
-        set({ role, staffId: DEMO_STAFF_BY_ROLE[role], facilityId: facilityForRole(role), mode: "demo", hasOrganization: true }),
+        set({ role, staffId: DEMO_STAFF_BY_ROLE[role], facilityId: facilityForRole(role), mode: "demo", hasOrganization: true, authResolved: true }),
       setRole: (role) =>
         set({ role, staffId: DEMO_STAFF_BY_ROLE[role], facilityId: facilityForRole(role) }),
       loginReal: (email, role, hasOrganization) =>
-        set({ email, role, staffId: null, facilityId: "all", mode: "real", hasOrganization, staffProfileId: null, staffLinked: null }),
+        set({ email, role, staffId: null, facilityId: "all", mode: "real", hasOrganization, staffProfileId: null, staffLinked: null, authResolved: true }),
+      applyRealSession: ({ email, role, userName, staffProfileId, staffLinked, orgName, plan }) =>
+        set({
+          email, role, staffId: null, facilityId: "all", mode: "real", hasOrganization: true,
+          userName: userName ?? null, staffProfileId: staffProfileId ?? null, staffLinked: staffLinked ?? null,
+          orgName: orgName ?? null, plan: plan ?? null, authResolved: true,
+        }),
+      markAuthResolved: () => set({ authResolved: true }),
+      invalidateSession: () =>
+        set({ role: null, staffId: null, facilityId: "all", email: null, userName: null, staffProfileId: null, staffLinked: null, mode: "demo", hasOrganization: false, orgName: null, plan: null, authResolved: true }),
       setHasOrganization: (v) => set({ hasOrganization: v }),
       setRealOrg: (orgName, plan) => set({ orgName, plan, hasOrganization: true }),
       setFacility: (facilityId) => set({ facilityId }),
@@ -91,11 +116,11 @@ export const useSession = create<SessionState>()(
       setStaffLink: (staffProfileId, linked) => set({ staffProfileId, staffLinked: linked }),
       exitDemo: () => {
         void supabaseSignOut();
-        set({ role: null, staffId: null, facilityId: "all", email: null, userName: null, staffProfileId: null, staffLinked: null, mode: "demo", hasOrganization: false, orgName: null, plan: null });
+        set({ role: null, staffId: null, facilityId: "all", email: null, userName: null, staffProfileId: null, staffLinked: null, mode: "demo", hasOrganization: false, orgName: null, plan: null, authResolved: true });
       },
       logout: () => {
         void supabaseSignOut();
-        set({ role: null, staffId: null, facilityId: "all", email: null, userName: null, staffProfileId: null, staffLinked: null, mode: "demo", hasOrganization: false, orgName: null, plan: null });
+        set({ role: null, staffId: null, facilityId: "all", email: null, userName: null, staffProfileId: null, staffLinked: null, mode: "demo", hasOrganization: false, orgName: null, plan: null, authResolved: true });
       },
       _setHydrated: () => set({ hydrated: true }),
     }),

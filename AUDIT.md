@@ -300,21 +300,42 @@ demo tenant).** The effective data mode defaults to `mock` unless
 2. **The sync pill showed "Local demo" app-wide.** `SyncStatus` rendered the `mock`
    chip ("Local demo") whenever data mode was mock, in real tenants too.
 
+**The DEEPER root cause (why a first pass wasn't enough): there was no auth→session
+bridge.** `loginReal` was only ever called from the login / accept-invite form
+submits. Nothing reconciled the Supabase auth session into the persisted zustand
+`useSession` store on load — so that store (localStorage) was the sole "current user".
+A stale demo identity persisted there (from any prior demo entry, or the old mock-mode
+login fallback running once) kept rendering as the current user, overriding a valid
+real session. And because data mode defaulted to `mock`, real auth never even ran.
+
 **The fix.**
-- **Demo login is scoped to the demo tenant only.** `handleAuth` now only allows the
-  seeded-role fallback when `isDemoTenant`. On a real tenant it always attempts real
-  Supabase auth; if the app isn't in supabase mode it shows a clear error ("real
-  sign-in isn't configured — set `NEXT_PUBLIC_DATA_MODE=supabase`") and **never enters
-  a demo user**. Auth failure/missing session → stays on login, no demo fallback.
-- **Real identity drives the UI.** After real login, identity comes from the Supabase
-  session (`resolveUserTenant` → real name/role/org + linked staff id), surfaced via
-  `useDisplayName()` and the sidebar footer — the greeting and profile show the real
-  account, not Marcus Reyes.
-- **Demo chrome is gated on the demo tenant.** `SyncStatus` no longer renders the
-  "Local demo" chip outside the demo tenant (the Demo badge + role switcher were
-  already `isDemoTenant`-gated in the topbar). Pure predicates in `lib/demo-mode.ts`
-  (`allowsDemoLoginFallback`, `showsLocalDemoChip`, `requiresLoginRedirect`) centralize
-  the rule and are unit-tested.
+- **Real auth is the default when configured.** `getDataMode()` now defaults to
+  `supabase` whenever Supabase is actually configured (URL + anon key), `mock` only when
+  there's no backend or it's explicitly requested. Demo/mock is no longer the silent
+  global default. (`packages/supabase/src/config.ts`.)
+- **Auth→session bridge** (`components/shell/supabase-session-sync.tsx`, mounted in the
+  shell). On a real tenant in supabase mode it makes the Supabase session the source of
+  truth: a signed-in user establishes/refreshes the real session (`resolveUserTenant` →
+  real name/role/org + linked staff id via `applyRealSession`); **no** session clears
+  any persisted identity (`invalidateSession`) so the shell redirects to login — never a
+  demo user. The shell waits for this reconciliation (`authResolved`) before trusting the
+  persisted session, so a stale demo identity can't flash or stick.
+- **A demo session is only valid in the demo tenant.** `requiresLoginRedirect` now
+  redirects to login when a `mode:"demo"` session is on a real tenant (defense in depth,
+  covers mock mode too). The app shell splash shows until a real session resolves.
+- **Demo login is scoped to the demo tenant only.** `login/page.tsx` `handleAuth` only
+  allows the seeded-role fallback when `isDemoTenant`; a real tenant always attempts real
+  auth and, if unconfigured, shows a clear error instead of entering a demo user.
+- **Demo chrome is gated on the demo tenant.** `SyncStatus` no longer renders the "Local
+  demo" chip outside the demo tenant (Demo badge + role switcher were already gated).
+  Pure predicates in `lib/demo-mode.ts` (`allowsDemoLoginFallback`, `showsLocalDemoChip`,
+  `requiresLoginRedirect`) centralize the rules and are unit-tested.
+
+After login as `tristenbaglieri@gmail.com` on `/villas/login`, identity comes from the
+Supabase session (greeting, top bar, bottom-left profile, role) — the real account, not
+Marcus Reyes — with no "Local demo" chrome; sign-out / missing session redirects to
+login. (Requires the deployment to carry the Supabase env vars so it runs in supabase
+mode; with them present no `NEXT_PUBLIC_DATA_MODE` flag is needed anymore.)
 
 ## 5. Known pre-existing gaps (not introduced here, noted for honesty)
 

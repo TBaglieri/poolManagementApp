@@ -23,7 +23,20 @@ export function showsLocalDemoChip(isDemoTenant: boolean, mode: "mock" | "supaba
   return isDemoTenant && mode === "mock";
 }
 
-/** After hydration, a session with no role must be sent to login (never demo). */
-export function requiresLoginRedirect(hydrated: boolean, role: RoleSlug | null): boolean {
-  return hydrated && !role;
+/**
+ * After hydration, decide whether to bounce to login. A session with no role, OR a
+ * DEMO-mode session on a real (non-demo) tenant — a stale/leaked demo identity that
+ * must never render outside the demo tenant — both redirect to login. A demo session
+ * is only valid inside the demo tenant.
+ */
+export function requiresLoginRedirect(
+  hydrated: boolean,
+  role: RoleSlug | null,
+  mode: "demo" | "real",
+  isDemoTenant: boolean,
+): boolean {
+  if (!hydrated) return false;
+  if (!role) return true;
+  if (mode === "demo" && !isDemoTenant) return true;
+  return false;
 }

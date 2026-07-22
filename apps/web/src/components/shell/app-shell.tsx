@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Rocket, X } from "lucide-react";
 import { ALL_NAV_ITEMS, isModuleEnabled, moduleForPath, isDemoTenant } from "@poolops/shared";
+import { getEffectiveDataMode } from "@poolops/supabase";
 import { useAccess, useHydrated } from "@/lib/access";
 import { useSession } from "@/lib/session";
 import { useTenantConfig } from "@/lib/tenant/provider";
@@ -12,6 +13,7 @@ import { requiresLoginRedirect } from "@/lib/demo-mode";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { SupabaseHydrator } from "./supabase-hydrator";
+import { SupabaseSessionSync } from "./supabase-session-sync";
 import { DemoSeeder } from "./demo-seeder";
 import { RouteProgress } from "./route-progress";
 import { AccessRestricted } from "@/components/ui/permission-gate";
@@ -23,22 +25,32 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const hydrated = useHydrated();
   const { role, canAny } = useAccess();
   const config = useTenantConfig();
+  const demoTenant = isDemoTenant(config);
   const mode = useSession((s) => s.mode);
+  const authResolved = useSession((s) => s.authResolved);
   const hasOrganization = useSession((s) => s.hasOrganization);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [bannerOpen, setBannerOpen] = useState(true);
 
+  // On a real tenant with a backend, don't trust the persisted session until the
+  // Supabase auth session has been reconciled (SupabaseSessionSync sets authResolved).
+  const waitingForAuth = getEffectiveDataMode() === "supabase" && !demoTenant && !authResolved;
+  const mustLogin = requiresLoginRedirect(hydrated, role, mode, demoTenant);
+
   useEffect(() => {
-    if (!hydrated) return;
-    // No authenticated session → login. Never fall through to a demo user.
-    if (requiresLoginRedirect(hydrated, role)) { router.replace("/login"); return; }
+    if (!hydrated || waitingForAuth) return;
+    // No valid session (or a demo session on a real tenant) → login. Never a demo user.
+    if (mustLogin) { router.replace("/login"); return; }
     // Real customer without an organization → send to setup (never trap them).
     if (mode === "real" && !hasOrganization) router.replace("/setup");
-  }, [hydrated, role, mode, hasOrganization, router]);
+  }, [hydrated, waitingForAuth, mustLogin, mode, hasOrganization, router]);
 
   useEffect(() => setMobileOpen(false), [pathname]);
 
-  if (!hydrated || !role) return <TenantSplash />;
+  // The session bridge must run even while we show the splash, so it can resolve auth.
+  if (!hydrated || waitingForAuth || mustLogin) {
+    return (<><SupabaseSessionSync />{!hydrated ? <TenantSplash /> : <TenantSplash label={waitingForAuth ? "Signing you in…" : "Redirecting…"} />}</>);
+  }
 
   // UI-level route guard (permission + tenant module gate; middleware also enforces server-side).
   const navMatch = ALL_NAV_ITEMS.find(
@@ -51,6 +63,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
+      <SupabaseSessionSync />
       <SupabaseHydrator />
       <DemoSeeder />
       {/* Desktop sidebar */}

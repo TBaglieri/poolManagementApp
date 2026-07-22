@@ -24,8 +24,15 @@ describe("demo-mode scoping", () => {
   });
 
   it("an unauthenticated (hydrated) session must redirect to login", () => {
-    expect(requiresLoginRedirect(true, null)).toBe(true);       // no role → login, not a demo user
-    expect(requiresLoginRedirect(true, "org_admin")).toBe(false);
-    expect(requiresLoginRedirect(false, null)).toBe(false);     // not hydrated yet → wait
+    expect(requiresLoginRedirect(true, null, "demo", false)).toBe(true);   // no role → login, not a demo user
+    expect(requiresLoginRedirect(true, "org_admin", "real", false)).toBe(false); // real session on real tenant → stay
+    expect(requiresLoginRedirect(false, null, "demo", false)).toBe(false); // not hydrated yet → wait
+  });
+
+  it("a DEMO session on a real tenant is invalid → redirect to login", () => {
+    // The stale/leaked demo identity (e.g. Marcus Reyes) must never render outside demo.
+    expect(requiresLoginRedirect(true, "org_admin", "demo", false)).toBe(true);
+    // …but the same demo session IS valid inside the demo tenant.
+    expect(requiresLoginRedirect(true, "org_admin", "demo", true)).toBe(false);
   });
 });
