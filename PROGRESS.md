@@ -127,6 +127,7 @@ this list, committing each item to `main`. ☑ = done+build-verified, ⏳ = in p
   policies for schedule_draft_shifts + schedule_template_requirements (were default-deny).
   ⚠ Careful SQL, but **not yet applied/tested on a live DB** (no project).
 - ☑ Permission-matrix + privilege-escalation tests (see Phase 4)
+- ☑ QA checklist per role + access matrix (QA.md)
 
 **Phase 4 — QA & hardening**
 - ☑ Vitest set up; 39 passing tests — RBAC matrix + privilege escalation, scheduling
@@ -138,7 +139,8 @@ this list, committing each item to `main`. ☑ = done+build-verified, ⏳ = in p
 - ☐ Push notifications (FCM/APNs) + deep links
 
 **Phase 5 — Release readiness**
-- ☐ Icons/splash config, versioning, store metadata drafts, privacy policy, release checklist
+- ☑ RELEASE.md: web (Vercel) + native tracks, secrets, icons/splash, versioning, store
+  metadata drafts, privacy/data-safety content, release checklist, "only you can do" steps
 - 🔒 Apple Developer Program, Google Play Console, signing, device testing, submission (you)
 
 ## Decisions needed (blocking build)
