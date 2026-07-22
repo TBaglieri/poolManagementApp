@@ -15,9 +15,14 @@
     "lint:web": "npm run lint --workspace @poolops/web",
     "typecheck": "npm run typecheck --workspace @poolops/web",
     "dev:mobile": "npm --prefix apps/mobile run start",
-    "install:mobile": "npm --prefix apps/mobile install"
+    "install:mobile": "npm --prefix apps/mobile install",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "engines": {
     "node": ">=18.18.0"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.10"
   }
 }

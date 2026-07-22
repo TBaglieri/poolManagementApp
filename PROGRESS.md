@@ -125,8 +125,9 @@ this list, committing each item to `main`. ☑ = done+build-verified, ⏳ = in p
 - ☐ Harden RLS for all tables; permission-matrix tests
 
 **Phase 4 — QA & hardening**
-- ☐ Add Vitest; unit tests for RBAC, scheduling engine, chem flagging, pricing
-- ☐ Privilege-escalation tests; QA checklist per role
+- ☑ Vitest set up; 39 passing tests — RBAC matrix + privilege escalation, scheduling
+  engine (time-off/cert/double-book/determinism), CSV. Run: `npm test`
+- ☐ QA checklist per role
 
 **Phase 3 — Native mobile (Expo)** 🔒 (needs EAS + devices + stores to truly finish)
 - ☐ Navigation + real Supabase auth + port key screens
