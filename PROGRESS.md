@@ -2,7 +2,11 @@
 
 > Running log you can check anytime. Newest entries at top of each section.
 
-## Current status: **Phase 1 — Staff Scheduling + Approvals: swaps/subs/pick-up/approvals DONE (mock-mode, build-verified). Blocked on you: create a fresh Supabase project to prove live persistence + test RLS.**
+## Current status: **Web app is tested, building (48/48 routes), and deployable. Critical path to summer use is now on YOU: create a Supabase project + deploy to Vercel. Native app is the remaining large build (needs your EAS/dev accounts).**
+
+Verified: `npm test` → 39/39 pass · `npm run typecheck` clean · `npm run build:web` → 48/48 routes.
+Committed to `main`: scheduling, time clock/payroll, chemicals, maintenance, certifications, tests,
+RLS hardening, RELEASE.md, QA.md.
 
 ---
 
