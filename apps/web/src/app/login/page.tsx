@@ -24,6 +24,7 @@ export default function LoginPage() {
   const enterDemo = useSession((s) => s.enterDemo);
   const loginReal = useSession((s) => s.loginReal);
   const setUserName = useSession((s) => s.setUserName);
+  const setStaffLink = useSession((s) => s.setStaffLink);
   const setRealOrg = useSession((s) => s.setRealOrg);
   const config = useTenantConfig();
   const isDemo = isDemoTenant(config);
@@ -58,10 +59,12 @@ export default function LoginPage() {
 
     // Look up the tenant this account belongs to and drop the user straight into
     // it (e.g. /villas/dashboard) — they never need to know or type the slug.
-    const ut = res.user ? await resolveUserTenant(res.user.id) : { slug: null, orgName: null, role: null, firstName: null };
+    const ut = res.user ? await resolveUserTenant(res.user.id) : { slug: null, orgName: null, role: null, firstName: null, staffId: null, staffLinked: null };
     setBusy(false);
     loginReal(email, ut.role ?? "org_admin", true);
     setUserName(ut.firstName ?? (email.includes("@") ? email.split("@")[0] : email));
+    setStaffLink(ut.staffId, ut.staffLinked === true);
+    if (ut.staffLinked === false) console.warn(`[staff-link] ${email} signed in with an org membership but no linked staff profile — self-service features will show the "profile not set up" state. Run scripts/link-staff-profiles.ts.`);
     if (ut.orgName) setRealOrg(ut.orgName, "small");
     router.push(ut.slug ? `/${ut.slug}/dashboard` : "/dashboard");
   };

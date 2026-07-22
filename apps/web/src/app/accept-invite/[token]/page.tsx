@@ -9,6 +9,7 @@ import { getEffectiveDataMode } from "@poolops/supabase";
 import { useInvites } from "@/lib/invites";
 import { signUp, signIn } from "@/lib/auth";
 import { useSession } from "@/lib/session";
+import { resolveUserTenant } from "@/lib/tenant/user-tenant";
 import { validatePassword, inviteAcceptable } from "@/lib/accounts";
 import { Logo } from "@/components/brand";
 import { RoleBadge } from "@/components/ui/badge";
@@ -29,6 +30,9 @@ export default function AcceptInvitePage({ params }: { params: { token: string }
   const localInvites = useInvites((s) => s.invites);
   const acceptInvite = useInvites((s) => s.acceptInvite);
   const loginReal = useSession((s) => s.loginReal);
+  const setUserName = useSession((s) => s.setUserName);
+  const setStaffLink = useSession((s) => s.setStaffLink);
+  const setRealOrg = useSession((s) => s.setRealOrg);
   const supabaseMode = getEffectiveDataMode() === "supabase";
 
   const local = localInvites.find((i) => i.token === token);
@@ -70,6 +74,7 @@ export default function AcceptInvitePage({ params }: { params: { token: string }
     }
     setBusy(true);
 
+    let newUserId: string | null = null;
     if (supabaseMode) {
       const res = await signUp(invite.email, password, {
         first_name: invite.firstName, last_name: invite.lastName, invite_token: token, role: invite.role,
@@ -82,16 +87,30 @@ export default function AcceptInvitePage({ params }: { params: { token: string }
           : res.error);
         return;
       }
+      newUserId = res.user?.id ?? null;
     }
 
     acceptInvite(token);
     setBusy(false);
     setDone(true);
     if (supabaseMode) {
+      // Server-side: create org membership + LINK the staff profile to this new
+      // auth id, so My Shifts / clock-in work the instant they land in-app.
+      let dest = "/dashboard";
+      if (newUserId) {
+        try { await fetch("/api/invite/accept", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, userId: newUserId }) }); } catch { /* best-effort */ }
+      }
       // Establish a session (sign in with the password they just set), then land in-app.
       await signIn(invite.email, password).catch(() => {});
       loginReal(invite.email, invite.role, true);
-      setTimeout(() => router.push("/dashboard"), 1000);
+      setUserName(invite.firstName || invite.email.split("@")[0]);
+      if (newUserId) {
+        const ut = await resolveUserTenant(newUserId);
+        setStaffLink(ut.staffId, ut.staffLinked === true);
+        if (ut.orgName) setRealOrg(ut.orgName, "small");
+        if (ut.slug) dest = `/${ut.slug}/dashboard`;
+      }
+      setTimeout(() => router.push(dest), 1000);
     }
   };
 

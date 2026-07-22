@@ -18,6 +18,7 @@
     "install:mobile": "npm --prefix apps/mobile install",
     "seed:villas": "tsx scripts/seed-villas.ts",
     "create-admin": "tsx scripts/create-admin.ts",
+    "link-staff-profiles": "tsx scripts/link-staff-profiles.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test"

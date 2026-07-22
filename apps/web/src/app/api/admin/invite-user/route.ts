@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSupabase } from "@poolops/supabase/server";
 import { getAdminSupabase } from "@poolops/supabase/admin";
+import { reserveStaffProfile } from "@/lib/server/staff-provisioning";
 
 /**
  * POST /api/admin/invite-user  — SERVER ONLY.
@@ -87,5 +88,17 @@ export async function POST(req: Request) {
     /* schema not applied — invite auth user still created */
   }
 
-  return NextResponse.json({ ok: true, invitedUserId, inviteId, note: inviteId ? null : "Auth user created; run supabase/schema.sql to persist the invitation record." });
+  // 6) RESERVE the staff profile now (profile_id NULL) so the guard has a staff
+  //    row the moment they accept — their My Shifts / clock-in work immediately,
+  //    with no manual linking. Idempotent per (org, email); best-effort.
+  let staffReserved = false;
+  if (organizationId) {
+    const reserved = await reserveStaffProfile(admin, {
+      organizationId, email, firstName, lastName, role, homeFacilityId: homeFacilityId ?? null,
+    });
+    staffReserved = reserved.ok;
+    if (!reserved.ok) console.warn("invite-user: staff reserve warning:", reserved.error);
+  }
+
+  return NextResponse.json({ ok: true, invitedUserId, inviteId, staffReserved, note: inviteId ? null : "Auth user created; run supabase/schema.sql to persist the invitation record." });
 }

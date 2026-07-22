@@ -1766,3 +1766,26 @@ on conflict do nothing;
 -- (packages/shared/src/data/seed.ts) so they work without this seed.
 
 -- <<<<<<<<<<<<<<<<<<<< END seed.sql <<<<<<<<<<<<<<<<<<<<
+
+-- >>>>>>>>>>>>>>>>>>>> BEGIN staff-auth-link.sql >>>>>>>>>>>>>>>>>>>>
+
+-- Links staff_profiles to auth accounts (see AUDIT.md §4e). Additive + idempotent.
+alter table public.staff_profiles add column if not exists email text;
+
+drop index if exists idx_staff_org_profile;
+create unique index idx_staff_org_profile
+  on public.staff_profiles(organization_id, profile_id);
+
+create index if not exists idx_staff_profile on public.staff_profiles(profile_id);
+create index if not exists idx_staff_org_email
+  on public.staff_profiles(organization_id, lower(email));
+
+-- Org-scope current_staff_id() so a multi-tenant user resolves to the right row.
+create or replace function public.current_staff_id()
+returns uuid language sql stable security definer set search_path = public as $$
+  select id from public.staff_profiles
+  where profile_id = auth.uid() and organization_id = public.current_org_id()
+  limit 1;
+$$;
+
+-- <<<<<<<<<<<<<<<<<<<< END staff-auth-link.sql <<<<<<<<<<<<<<<<<<<<

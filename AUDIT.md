@@ -182,10 +182,53 @@ etc. Fixes:
   routes are blocked server-side in middleware for any non-demo tenant.
 
 Tests added: real-tenant emptiness + no demo names + empty store (`tenant-leak.test.ts`),
-org-name→slug mapping (Bug 1), and demo-only nav filtering (Bug 3). Known follow-up:
-real staff/lifeguard users don't yet map their auth id to a `staff_profiles` row, so
-staff self-service (my-shifts, clock-as-self) still needs that link — separate from
-these bugs.
+org-name→slug mapping (Bug 1), and demo-only nav filtering (Bug 3). Follow-up (now
+done — see §4e): linking staff auth accounts to their `staff_profiles` row.
+
+## 4e. Why staff self-service didn't work (auth→staff link) + the fix
+
+**Root cause.** RLS already keys every self-service feature off `current_staff_id()`
+— the `staff_profiles` row whose `profile_id = auth.uid()` (see `rls-policies.sql`:
+shifts, shift_trade_requests, time_off_requests, time_clock_entries all scope reads/
+writes to it). The link *column* existed (`staff_profiles.profile_id → profiles.id
+== auth.users.id`), but **nothing ever wrote it for an invited guard**: invite
+acceptance created the auth user (+ profile via the signup trigger) and stopped
+there — no `staff_profiles` row, no `organization_members` row. So `current_staff_id()`
+resolved to NULL and My Shifts / clock-in / per-person attribution had no identity to
+hang on. There was also no uniqueness guarantee on the link.
+
+**Where the link is now created.**
+- **Data model** (`supabase/staff-auth-link.sql`, folded into `_run_all.sql`): adds
+  `staff_profiles.email` (so an invite can reserve a row before the auth account
+  exists, and the backfill can match by email in-tenant); a **UNIQUE index on
+  `(organization_id, profile_id)`** so one auth account maps to at most one staff
+  profile per tenant (plain unique index — NULLs distinct — so any number of reserved
+  rows with `profile_id NULL` coexist; created *before* any upsert uses it as an
+  ON CONFLICT arbiter, avoiding the 42P10 partial-index pitfall); and org-scopes
+  `current_staff_id()` so a multi-tenant user resolves to the right org's row.
+- **Onboarding time** (the important part). Invite (`/api/admin/invite-user`) now
+  **reserves** a staff row (`reserveStaffProfile`, `profile_id NULL`). Acceptance hits
+  the new server route **`/api/invite/accept`** which verifies the accepting user's
+  email matches the invite, upserts org membership, and **links** the reserved row —
+  writing `profile_id` onto it (`linkStaffProfile`), or creating a linked row if none
+  was reserved. Both orderings are handled with no race that leaves an account
+  unlinked. Provisioning logic lives in `apps/web/src/lib/server/staff-provisioning.ts`;
+  the pure email-matching rules are in `packages/shared/src/staff/link.ts`.
+- **Backfill** (`scripts/link-staff-profiles.ts`, `npm run link-staff-profiles`):
+  matches existing org members to unlinked staff rows by email within each tenant and
+  writes the id. Idempotent (skips already-linked), supports `--dry-run` / `--tenant`,
+  reports counts and flags anything it can't match.
+- **Client resolution + fail-loud.** `resolveUserTenant()` now also returns the user's
+  `staffId`/`staffLinked`; login and invite-accept store it on the session. A staff
+  user who signs in with **no** linked profile gets the `UnlinkedStaffNotice` ("your
+  staff profile isn't set up — contact your admin") plus a console warning, instead of
+  a silently-empty My Shifts. Server enforcement is unchanged and correct: RLS already
+  restricts everything to `current_staff_id()`, which now actually resolves.
+
+Tests: pure link/matching logic incl. tenant isolation + idempotency
+(`packages/shared/src/staff/link.test.ts`), the fail-loud predicate
+(`apps/web/src/lib/staff-link.test.ts`), and a `current_staff_id()` self-resolution +
+no-cross-tenant assertion in `supabase/tenant-isolation.test.sql`.
 
 ## 5. Known pre-existing gaps (not introduced here, noted for honesty)
 

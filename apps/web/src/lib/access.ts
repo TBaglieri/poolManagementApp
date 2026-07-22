@@ -13,6 +13,8 @@ export function useAccess() {
   const facilityId = useSession((s) => s.facilityId);
   const mode = useSession((s) => s.mode);
   const email = useSession((s) => s.email);
+  const staffProfileId = useSession((s) => s.staffProfileId);
+  const staffLinked = useSession((s) => s.staffLinked);
   const staff = getStaff(staffId);
   const overrides = staff?.permissionOverrides ?? [];
 
@@ -21,6 +23,9 @@ export function useAccess() {
     roleMeta: role ? getRole(role) : null,
     staff,
     staffId,
+    /** The real signed-in user's linked staff_profiles.id (null in demo/unlinked). */
+    staffProfileId,
+    staffLinked,
     facilityId,
     mode,
     isDemo: mode === "demo",
@@ -28,6 +33,38 @@ export function useAccess() {
     can: (p: PermissionKey) => (role ? canFn(role, p, overrides) : false),
     canAny: (ps: PermissionKey[]) => (role ? canAnyFn(role, ps, overrides) : false),
   };
+}
+
+/**
+ * The id a user acts AS for self-service features (My Shifts, clock-in, per-person
+ * attribution): the real linked staff_profiles.id in real mode, the demo staff id
+ * in demo mode. Null in real mode when the account has no linked staff profile.
+ */
+export function useMyStaffId(): string | null {
+  const mode = useSession((s) => s.mode);
+  const staffProfileId = useSession((s) => s.staffProfileId);
+  const staffId = useSession((s) => s.staffId);
+  return mode === "real" ? staffProfileId : staffId;
+}
+
+export type StaffProfileState = "ok" | "unlinked" | "demo";
+
+/** Pure form of the staff-link check (unit-testable). */
+export function staffProfileState(mode: "demo" | "real", staffProfileId: string | null, staffLinked: boolean | null): StaffProfileState {
+  if (mode !== "real") return "demo";
+  return staffProfileId || staffLinked === true ? "ok" : "unlinked";
+}
+
+/**
+ * Whether the current user can act as a staff member on self-service screens.
+ * `"unlinked"` means: signed in, but no staff_profiles row — fail loudly instead
+ * of silently showing empty/incorrect data.
+ */
+export function useStaffProfileState(): StaffProfileState {
+  const mode = useSession((s) => s.mode);
+  const staffProfileId = useSession((s) => s.staffProfileId);
+  const staffLinked = useSession((s) => s.staffLinked);
+  return staffProfileState(mode, staffProfileId, staffLinked);
 }
 
 /** Read hydration state to avoid SSR/client mismatches before persist loads. */

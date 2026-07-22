@@ -22,8 +22,11 @@ declare
   usr_b uuid := gen_random_uuid();
   fac_a uuid := gen_random_uuid();
   fac_b uuid := gen_random_uuid();
+  staff_a uuid := gen_random_uuid();
+  staff_b uuid := gen_random_uuid();
   visible_a int;
   visible_b int;
+  my_staff uuid;
 begin
   -- Order matters (FKs): organizations before profiles.organization_id.
   insert into public.organizations (id, name, type)
@@ -46,12 +49,18 @@ begin
   insert into public.facilities (id, organization_id, name) values (fac_a, org_a, 'A Pool'), (fac_b, org_b, 'B Pool');
   insert into public.chemical_logs (organization_id, facility_id, ph) values (org_a, fac_a, 7.4), (org_b, fac_b, 7.5);
 
+  -- Staff rows LINKED to each user (the auth→staff link this migration adds).
+  insert into public.staff_profiles (id, organization_id, profile_id, first_name, primary_role)
+  values (staff_a, org_a, usr_a, 'A', 'org_admin'), (staff_b, org_b, usr_b, 'B', 'org_admin');
+
   -- Impersonate user A (authenticated).
   perform set_config('role', 'authenticated', true);
   perform set_config('request.jwt.claims', json_build_object('sub', usr_a, 'role', 'authenticated')::text, true);
 
   select count(*) into visible_a from public.chemical_logs where organization_id = org_a;
   select count(*) into visible_b from public.chemical_logs where organization_id = org_b;
+  -- current_staff_id() must resolve to A's OWN staff row, never B's.
+  select public.current_staff_id() into my_staff;
 
   -- Back to the privileged role to raise/inspect.
   perform set_config('role', 'postgres', true);
@@ -62,8 +71,11 @@ begin
   if visible_b <> 0 then
     raise exception 'ISOLATION TEST FAILED: CROSS-TENANT LEAK — user A saw % row(s) from org B.', visible_b;
   end if;
+  if my_staff <> staff_a then
+    raise exception 'STAFF-LINK TEST FAILED: current_staff_id() resolved to % (expected A''s row %).', my_staff, staff_a;
+  end if;
 
-  raise notice 'ISOLATION TEST PASSED: user A saw org A (%) and 0 org B rows.', visible_a;
+  raise notice 'ISOLATION TEST PASSED: user A saw org A (%), 0 org B rows, and resolved to their own staff row.', visible_a;
 end$$;
 
 rollback;

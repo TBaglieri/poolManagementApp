@@ -7,14 +7,17 @@ import {
   shiftDuration, SHIFT_POSITION_LABELS,
 } from "@poolops/shared";
 import { mondayOf } from "@poolops/scheduling";
-import { useAccess } from "@/lib/access";
+import { useAccess, useMyStaffId, useStaffProfileState } from "@/lib/access";
 import { useDemo } from "@/lib/store";
 import { MSection } from "@/components/mobile/mobile-shell";
 import { StaffRequestButtons } from "@/components/schedule/staff-requests";
+import { UnlinkedStaffNotice } from "@/components/shell/unlinked-staff-notice";
 import { cn } from "@/lib/cn";
 
 export default function MobileMySchedule() {
   const { staff: me } = useAccess();
+  const myStaffId = useMyStaffId();
+  const profileState = useStaffProfileState();
   const shifts = useDemo((s) => s.shifts);
   const pickUpShift = useDemo((s) => s.pickUpShift);
 
@@ -26,11 +29,22 @@ export default function MobileMySchedule() {
 
   const all = shifts;
   const myShifts = all
-    .filter((s) => s.assignedStaffId === me?.id && dayKeys.includes(s.date))
+    .filter((s) => myStaffId != null && s.assignedStaffId === myStaffId && dayKeys.includes(s.date))
     .sort((a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start));
-  const openShifts = all.filter((s) => !s.assignedStaffId && dayKeys.includes(s.date) && me?.facilityIds.includes(s.facilityId));
+  const openShifts = all.filter((s) => !s.assignedStaffId && dayKeys.includes(s.date) && (me ? me.facilityIds.includes(s.facilityId) : false));
   const myHours = myShifts.reduce((s, sh) => s + shiftDuration(sh.start, sh.end), 0);
   const todayKey = new Date().toISOString().slice(0, 10);
+
+  // Fail loudly: a real staff account with no linked profile can't have "my"
+  // shifts — tell them to contact their admin instead of showing a blank week.
+  if (profileState === "unlinked") {
+    return (
+      <div className="px-5 pt-6">
+        <h1 className="text-xl font-bold text-slate-900">My Schedule</h1>
+        <UnlinkedStaffNotice className="mt-4" />
+      </div>
+    );
+  }
 
   return (
     <div className="pb-4">

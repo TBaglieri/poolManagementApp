@@ -50,6 +50,21 @@ npm run create-admin -- --email tristenbaglieri@gmail.com --tenant villas --firs
 #   Idempotent — re-run to reset the password.
 ```
 
+## 3b. Link staff auth accounts to their staff_profiles (backfill)
+
+New invites are linked automatically at acceptance. Run this once to link any
+**existing** staff/lifeguard accounts created before the auth→staff link existed
+(otherwise their My Shifts / clock-in show the "profile not set up" state). Requires
+`supabase/staff-auth-link.sql` to have been applied (it's included in `_run_all.sql`).
+
+```bash
+npm run link-staff-profiles                 # all tenants, apply
+npm run link-staff-profiles -- --dry-run    # report only, change nothing
+npm run link-staff-profiles -- --tenant villas
+#   Matches each org member to an unlinked staff row by email, writes profile_id.
+#   Idempotent — safe to run repeatedly; flags anything it can't match for review.
+```
+
 ## 4. Run the tests
 
 ```bash

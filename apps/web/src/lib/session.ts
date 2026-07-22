@@ -17,6 +17,13 @@ interface SessionState {
   email: string | null;
   /** Real signed-in user's display name (from their profile). Null in demo mode. */
   userName: string | null;
+  /** The real user's linked staff_profiles.id (null in demo, or if unlinked). */
+  staffProfileId: ID | null;
+  /**
+   * Whether the real user resolved to a staff row. `null` = not yet resolved,
+   * `true` = linked, `false` = signed in but has NO staff profile (fail loudly).
+   */
+  staffLinked: boolean | null;
   mode: SessionMode;
   /** Set once a real user finishes org setup (drives setup redirect). */
   hasOrganization: boolean;
@@ -38,6 +45,8 @@ interface SessionState {
   setEmail: (email: string | null) => void;
   /** Set the real user's display name (from their profile). */
   setUserName: (name: string | null) => void;
+  /** Record the resolved staff link for the real user (id + whether it resolved). */
+  setStaffLink: (staffProfileId: ID | null, linked: boolean) => void;
   /** Leave demo mode and return to the landing/login. */
   exitDemo: () => void;
   logout: () => void;
@@ -58,6 +67,8 @@ export const useSession = create<SessionState>()(
       facilityId: "all",
       email: null,
       userName: null,
+      staffProfileId: null,
+      staffLinked: null,
       mode: "demo",
       hasOrganization: false,
       orgName: null,
@@ -65,32 +76,33 @@ export const useSession = create<SessionState>()(
       hydrated: false,
 
       enterDemo: (role) =>
-        set({ role, staffId: DEMO_STAFF_BY_ROLE[role], facilityId: facilityForRole(role), mode: "demo", email: null, userName: null, hasOrganization: true }),
+        set({ role, staffId: DEMO_STAFF_BY_ROLE[role], facilityId: facilityForRole(role), mode: "demo", email: null, userName: null, staffProfileId: null, staffLinked: null, hasOrganization: true }),
       loginAs: (role) =>
         set({ role, staffId: DEMO_STAFF_BY_ROLE[role], facilityId: facilityForRole(role), mode: "demo", hasOrganization: true }),
       setRole: (role) =>
         set({ role, staffId: DEMO_STAFF_BY_ROLE[role], facilityId: facilityForRole(role) }),
       loginReal: (email, role, hasOrganization) =>
-        set({ email, role, staffId: null, facilityId: "all", mode: "real", hasOrganization }),
+        set({ email, role, staffId: null, facilityId: "all", mode: "real", hasOrganization, staffProfileId: null, staffLinked: null }),
       setHasOrganization: (v) => set({ hasOrganization: v }),
       setRealOrg: (orgName, plan) => set({ orgName, plan, hasOrganization: true }),
       setFacility: (facilityId) => set({ facilityId }),
       setEmail: (email) => set({ email }),
       setUserName: (userName) => set({ userName }),
+      setStaffLink: (staffProfileId, linked) => set({ staffProfileId, staffLinked: linked }),
       exitDemo: () => {
         void supabaseSignOut();
-        set({ role: null, staffId: null, facilityId: "all", email: null, userName: null, mode: "demo", hasOrganization: false, orgName: null, plan: null });
+        set({ role: null, staffId: null, facilityId: "all", email: null, userName: null, staffProfileId: null, staffLinked: null, mode: "demo", hasOrganization: false, orgName: null, plan: null });
       },
       logout: () => {
         void supabaseSignOut();
-        set({ role: null, staffId: null, facilityId: "all", email: null, userName: null, mode: "demo", hasOrganization: false, orgName: null, plan: null });
+        set({ role: null, staffId: null, facilityId: "all", email: null, userName: null, staffProfileId: null, staffLinked: null, mode: "demo", hasOrganization: false, orgName: null, plan: null });
       },
       _setHydrated: () => set({ hydrated: true }),
     }),
     {
       name: "poolops-session",
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ role: s.role, staffId: s.staffId, facilityId: s.facilityId, email: s.email, userName: s.userName, mode: s.mode, hasOrganization: s.hasOrganization, orgName: s.orgName, plan: s.plan }),
+      partialize: (s) => ({ role: s.role, staffId: s.staffId, facilityId: s.facilityId, email: s.email, userName: s.userName, staffProfileId: s.staffProfileId, staffLinked: s.staffLinked, mode: s.mode, hasOrganization: s.hasOrganization, orgName: s.orgName, plan: s.plan }),
       onRehydrateStorage: () => (state) => state?._setHydrated(),
     },
   ),
