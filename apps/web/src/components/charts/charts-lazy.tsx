@@ -9,7 +9,7 @@ import dynamic from "next/dynamic";
 
 function ChartSkeleton({ height = 220 }: { height?: number }) {
   return (
-    <div className="w-full animate-pulse rounded-xl bg-slate-100" style={{ height }} aria-hidden />
+    <div className="skeleton w-full rounded-xl" style={{ height }} aria-hidden />
   );
 }
 
