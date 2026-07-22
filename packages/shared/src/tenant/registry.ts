@@ -8,11 +8,15 @@
  */
 import { resolveTenantConfig } from "./resolve";
 import { HUDSON_THEME } from "./presets";
+import { DEFAULT_BRAND_SCALE, DEFAULT_NAVY_SCALE } from "./defaults";
 import type { TenantConfig, TenantConfigInput } from "./schema";
+
+/** The app's original cyan/navy look, kept pixel-identical via explicit scales. */
+const ORIGINAL_LOOK = { brandScale: DEFAULT_BRAND_SCALE, navyScale: DEFAULT_NAVY_SCALE };
 
 export const TENANT_INPUTS: Record<string, TenantConfigInput> = {
   // Platform default / base look (the app's original cyan/navy).
-  default: { slug: "default", displayName: "PoolOps Pro" },
+  default: { slug: "default", displayName: "PoolOps Pro", theme: ORIGINAL_LOOK },
 
   // The existing bundled demo organization, on the default look.
   tidetown: {
@@ -24,6 +28,7 @@ export const TENANT_INPUTS: Record<string, TenantConfigInput> = {
     address: "Cedar Falls",
     timezone: "America/Chicago",
     branding: { monogram: "TT" },
+    theme: ORIGINAL_LOOK,
     copy: {
       tagline: "Aquatics operations for the whole town.",
       welcome: "Welcome back. Here's what's happening across your facilities today.",

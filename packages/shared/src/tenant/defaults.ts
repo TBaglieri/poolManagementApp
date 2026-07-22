@@ -57,8 +57,10 @@ export const DEFAULT_TENANT_CONFIG: TenantConfig = {
     density: "comfortable",
     defaultScheme: "light",
     allowUserScheme: true,
-    brandScale: DEFAULT_BRAND_SCALE,
-    navyScale: DEFAULT_NAVY_SCALE,
+    // No explicit brandScale/navyScale here on purpose: a tenant that only sets
+    // `theme.brand` gets a *generated* scale from their color. Tenants that want
+    // the app's original cyan/navy (default, tidetown) set the explicit scales in
+    // their own registry entry — see tenant/registry.ts — so they don't leak here.
     customVars: {},
   },
   copy: {

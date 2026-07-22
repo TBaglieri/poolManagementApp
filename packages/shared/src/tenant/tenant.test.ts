@@ -59,6 +59,11 @@ describe("Villas 'Hudson Slate & Water' documented pairs", () => {
   it("white text on the slate sidebar (navy-950) is very high contrast", () => {
     expect(contrastRatio([255, 255, 255], triplet("--navy-950"))).toBeGreaterThanOrEqual(7);
   });
+
+  it("generates its own Hudson brand, not the inherited default cyan (regression)", () => {
+    const cyan700 = hexToRgb(DEFAULT_BRAND_SCALE["700"]).join(" ");
+    expect(vars["--brand-700"]).not.toBe(cyan700);
+  });
 });
 
 describe("deep merge + resolution", () => {
