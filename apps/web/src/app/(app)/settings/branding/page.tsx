@@ -21,6 +21,7 @@ import { Field, Input, Textarea, Select } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { AccessRestricted } from "@/components/ui/permission-gate";
 import { TenantMark } from "@/components/theme/tenant-brand";
+import { ShareLinks } from "@/components/settings/share-links";
 import { cn } from "@/lib/cn";
 import { Check, X, AlertTriangle, Sparkles } from "lucide-react";
 
@@ -130,6 +131,7 @@ export default function BrandingAdminPage() {
           { key: "features", label: "Modules" },
           { key: "identity", label: "Identity & Copy" },
           { key: "roles", label: "Role Labels" },
+          { key: "share", label: "Share & Invite" },
           { key: "advanced", label: "Advanced" },
         ]}
       />
@@ -370,6 +372,8 @@ export default function BrandingAdminPage() {
       )}
 
       {/* ------------------------------ ADVANCED ------------------------------ */}
+      {tab === "share" && <ShareLinks slug={slug} displayName={config.displayName} />}
+
       {tab === "advanced" && (
         <div className="grid gap-5 lg:grid-cols-2">
           <SectionCard title="Export / import" subtitle="Move this configuration between environments or seed the database.">

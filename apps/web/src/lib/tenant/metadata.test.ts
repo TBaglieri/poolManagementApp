@@ -1,0 +1,38 @@
+import { describe, it, expect } from "vitest";
+import { getTenantConfig } from "@poolops/shared";
+import { tenantMetadata } from "./metadata";
+
+const ORIGIN = "https://pools.example.com";
+
+describe("tenantMetadata — per-tenant link previews", () => {
+  it("resolves Open Graph + Twitter from the Villas config", () => {
+    const meta = tenantMetadata(getTenantConfig("villas"), { origin: ORIGIN, slug: "villas" });
+    expect(meta.openGraph?.title).toBe("Villas on the Ridge");
+    expect(meta.openGraph?.description).toBe("Your community pool, run smoothly.");
+    expect((meta.openGraph as any)?.url).toBe(`${ORIGIN}/villas`);
+    expect((meta.twitter as any)?.card).toBe("summary_large_image");
+    const img = (meta.openGraph as any)?.images?.[0]?.url;
+    expect(img).toBe(`${ORIGIN}/api/og/villas`);
+  });
+
+  it("a SECOND tenant renders its OWN branding, never Villas'", () => {
+    const meta = tenantMetadata(getTenantConfig("tidetown"), { origin: ORIGIN, slug: "tidetown" });
+    expect(meta.openGraph?.title).toBe("Tide & Town Aquatics");
+    expect(meta.openGraph?.title).not.toBe("Villas on the Ridge");
+    expect((meta.openGraph as any)?.images?.[0]?.url).toBe(`${ORIGIN}/api/og/tidetown`);
+    expect((meta.openGraph as any)?.url).toBe(`${ORIGIN}/tidetown`);
+  });
+
+  it("prefers a tenant-supplied static ogImage when set", () => {
+    const base = getTenantConfig("villas");
+    const withImage = { ...base, branding: { ...base.branding, ogImage: "/branding/villas-card.png" } };
+    const meta = tenantMetadata(withImage, { origin: ORIGIN, slug: "villas" });
+    expect((meta.openGraph as any)?.images?.[0]?.url).toBe(`${ORIGIN}/branding/villas-card.png`);
+  });
+
+  it("sets a favicon and apple-touch icon", () => {
+    const meta = tenantMetadata(getTenantConfig("villas"), { origin: ORIGIN, slug: "villas" });
+    expect((meta.icons as any)?.icon).toContain("data:image/svg+xml");
+    expect((meta.icons as any)?.apple).toBeTruthy();
+  });
+});

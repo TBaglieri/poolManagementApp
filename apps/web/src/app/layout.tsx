@@ -1,9 +1,19 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import "./globals.css";
 import { getServerTenantConfig, getTenantSlug } from "@/lib/tenant/server";
 import { TenantProvider } from "@/lib/tenant/provider";
 import { ThemeInjector } from "@/components/theme/theme-injector";
-import { themeCss, brandHex, faviconDataUri } from "@/lib/tenant/theme-css";
+import { themeCss, brandHex } from "@/lib/tenant/theme-css";
+import { tenantMetadata } from "@/lib/tenant/metadata";
+
+/** Absolute origin of the current request (proto + host), from proxy-aware headers. */
+function requestOrigin(): string {
+  const h = headers();
+  const host = h.get("x-forwarded-host") || h.get("host") || "localhost:3000";
+  const proto = h.get("x-forwarded-proto") || (host.startsWith("localhost") ? "http" : "https");
+  return `${proto}://${host}`;
+}
 
 export async function generateViewport(): Promise<Viewport> {
   const config = await getServerTenantConfig();
@@ -16,13 +26,7 @@ export async function generateViewport(): Promise<Viewport> {
 
 export async function generateMetadata(): Promise<Metadata> {
   const config = await getServerTenantConfig();
-  const name = config.productName;
-  return {
-    title: { default: `${name} — Pool Management`, template: `%s · ${name}` },
-    description: config.copy.tagline,
-    applicationName: name,
-    icons: { icon: faviconDataUri(config) },
-  };
+  return tenantMetadata(config, { origin: requestOrigin(), slug: getTenantSlug() });
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

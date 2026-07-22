@@ -230,6 +230,48 @@ Tests: pure link/matching logic incl. tenant isolation + idempotency
 (`apps/web/src/lib/staff-link.test.ts`), and a `current_staff_id()` self-resolution +
 no-cross-tenant assertion in `supabase/tenant-isolation.test.sql`.
 
+## 4f. Tenant branding assets — how they're stored and resolved
+
+White-label rule kept throughout: **a tenant's brand assets live in that tenant's
+config**, never hardcoded globally. `BrandingSchema`
+(`packages/shared/src/tenant/schema.ts`) gained `icon`, `ogImage`, `appleTouchIcon`
+(all optional, per-tenant).
+
+- **Icon-only mark** (`branding.icon`). Either `"inline:<id>"` — a built-in vector
+  mark from `packages/shared/src/tenant/brand-icons.ts` (Villas = `inline:houses`, a
+  row of townhouses in line art) — or an asset URL. Inline marks are pure path data
+  shared by three renderers so the brand is identical everywhere: the React
+  `TenantMark` (home button/sidebar), the favicon data-URI (`theme-css.ts`), and the
+  social card. They're vector, so crisp from 16px to 1200px, and inherit the theme
+  color. A raster asset (`branding/villas-houses.svg` ships as a static fallback; drop
+  a PNG and point `branding.logoLight`/`branding.icon` at it — see
+  `apps/web/public/branding/README.md`).
+- **Home button** (`components/shell/topbar.tsx` → `TenantHomeButton`). Renders
+  `TenantMark` + `config.displayName`, links to the tenant home — every tenant gets
+  its own icon + name automatically, sourced from config.
+- **Link previews.** `tenantMetadata()` (`lib/tenant/metadata.ts`, pure/tested) builds
+  Open Graph + Twitter tags from config (og:title = displayName, og:description =
+  tagline, og:url = tenant URL, og:image = the tenant's card). The root layout calls
+  it with the request origin + resolved slug, so the tags resolve for **whichever
+  tenant the URL belongs to** — pool #2 unfurls with its own name/image. The card is a
+  1200×630 image generated per-tenant by `app/api/og/[slug]/route.tsx` (next/og), or a
+  static `branding.ogImage` if the tenant supplies one. Favicon + apple-touch icon come
+  from the same mark, so tab, home button and unfurl are one brand. (Note: the OG
+  *image* rendering is verified by build only here; the meta tags are unit-tested and
+  standards-compliant — some email clients strip OG tags, iMessage/modern webmail use
+  them.)
+- **Share / invite.** Branding admin → "Share & Invite" tab (`components/settings/
+  share-links.tsx`): a copyable, tenant-isolated portal link (`/<slug>/login`) plus a
+  pointer into the existing role-invite flow (single-use, expiring tokens that
+  provision + link the staff profile per §4e). A share link never grants access to
+  another tenant.
+
+**Asset note:** the raster logo the task referenced (`apps/web/public/branding/villas-logo.png`)
+was **not present in the repo** (the `public/` tree was empty), so its cream background
+couldn't be cut out / traced. The authored inline `houses` SVG covers the icon, favicon
+and OG mark without it; drop the PNG in and set `branding.logoLight` to use the raster
+wordmark. No "Community Icon" placeholder text is shipped.
+
 ## 5. Known pre-existing gaps (not introduced here, noted for honesty)
 
 - Authorization is UI-level in the app; RLS is the real boundary. This work does not change auth/RLS (per the "don't push destructive/auth changes while away" rule).

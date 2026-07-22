@@ -67,7 +67,9 @@ export const TENANT_INPUTS: Record<string, TenantConfigInput> = {
     address: "Dobbs Ferry, New York",
     timezone: "America/New_York",
     contact: { email: "board@villasontheridge.example", phone: "(914) 555-0139" },
-    branding: { monogram: "VR", fontFamily: "Inter" },
+    // Houses line-art mark (inline SVG → crisp + theme-colored at any size).
+    // Drop a raster logo at branding.logoLight to override the wordmark image.
+    branding: { monogram: "VR", fontFamily: "Inter", icon: "inline:houses" },
     theme: HUDSON_THEME,
     copy: {
       tagline: "Your community pool, run smoothly.",

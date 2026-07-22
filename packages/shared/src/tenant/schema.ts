@@ -44,6 +44,17 @@ export const BrandingSchema = z.object({
   logoDark: z.string().optional(),
   favicon: z.string().optional(),
   heroImage: z.string().optional(),
+  /**
+   * The compact, icon-only brand mark (no wordmark) used for the home button,
+   * favicon and touch icon. Either an asset URL (e.g. "/branding/villas-houses.svg")
+   * or an inline reference "inline:<id>" (e.g. "inline:houses") that renders a
+   * crisp, theme-colored SVG at any size. Per-tenant — each tenant sets its own.
+   */
+  icon: z.string().optional(),
+  /** Social preview image (~1200×630) for link unfurls; generated per-tenant if unset. */
+  ogImage: z.string().optional(),
+  /** apple-touch-icon; falls back to the icon/generated mark when unset. */
+  appleTouchIcon: z.string().optional(),
   fontFamily: z.string(),
   /** Short letters for the generated logo mark when no image is set. */
   monogram: z.string().min(1).max(3),

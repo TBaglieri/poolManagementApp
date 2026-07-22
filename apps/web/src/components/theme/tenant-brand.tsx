@@ -7,7 +7,7 @@
  * come from tokens, so this restyles automatically per tenant.
  */
 import { Waves } from "lucide-react";
-import { ORG_TYPE_LABELS } from "@poolops/shared";
+import { ORG_TYPE_LABELS, INLINE_ICONS, inlineIconId } from "@poolops/shared";
 import { cn } from "@/lib/cn";
 import { useTenantConfig } from "@/lib/tenant/provider";
 
@@ -20,15 +20,40 @@ const SIZES = {
 
 type Size = keyof typeof SIZES;
 
+/** The tenant's icon-only mark (no wordmark). Inline SVG, raster/vector URL, or a
+ *  monogram tile — all in the tenant's brand color. Used for the home button. */
 export function TenantMark({ size = "md", className }: { size?: Size; className?: string }) {
   const config = useTenantConfig();
   const s = SIZES[size];
-  const logo = config.branding.logoLight;
+  const icon = config.branding.icon;
+  const inline = inlineIconId(icon);
 
-  if (logo) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={logo} alt={`${config.displayName} logo`} className={cn("object-contain", s.box, className)} />;
+  // Inline vector mark → renders in white on the brand tile, crisp at any size and
+  // fully legible on both light and dark app chrome.
+  if (inline) {
+    const def = INLINE_ICONS[inline];
+    return (
+      <span
+        className={cn(
+          "flex items-center justify-center bg-gradient-to-br from-brand-400 to-brand-700 text-white shadow-sm ring-1 ring-brand-700/20",
+          s.box, className,
+        )}
+        aria-hidden
+      >
+        <svg viewBox={def.viewBox} className={s.icon} fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+          {def.paths.map((d, i) => <path key={i} d={d} />)}
+        </svg>
+      </span>
+    );
   }
+
+  // Explicit icon asset URL, or a full logo image.
+  const src = (icon && !icon.startsWith("inline:") ? icon : undefined) ?? config.branding.logoLight;
+  if (src) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={src} alt={`${config.displayName} logo`} className={cn("object-contain", s.box, className)} />;
+  }
+
   return (
     <span
       className={cn(

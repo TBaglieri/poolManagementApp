@@ -1,17 +1,36 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Menu, Search, FlaskConical, LogOut } from "lucide-react";
 import { ALL_NAV_ITEMS, isDemoTenant } from "@poolops/shared";
 import { useAccess } from "@/lib/access";
 import { useSession } from "@/lib/session";
 import { useTenantConfig } from "@/lib/tenant/provider";
+import { TenantMark } from "@/components/theme/tenant-brand";
 import { FacilitySwitcher } from "./facility-switcher";
 import { RoleSwitcher } from "./role-switcher";
 import { NotificationsBell } from "./notifications";
 import { QuickActions } from "./quick-actions";
 import { SyncStatus } from "./sync-status";
 import { SchemeToggle } from "@/components/theme/scheme-toggle";
+
+/** Top-right brand home button: tenant icon + name, links to the tenant home. */
+function TenantHomeButton() {
+  const config = useTenantConfig();
+  return (
+    <Link
+      href="/dashboard"
+      title={`${config.displayName} — home`}
+      className="ml-1 flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-2 py-1.5 pr-3 transition-colors hover:border-brand-300 hover:bg-brand-50/40 dark:border-slate-700 dark:bg-slate-800/60 dark:hover:border-brand-500/50 dark:hover:bg-slate-800"
+    >
+      <TenantMark size="sm" />
+      <span className="hidden max-w-[12rem] truncate text-sm font-semibold text-slate-800 dark:text-slate-100 sm:block">
+        {config.displayName}
+      </span>
+    </Link>
+  );
+}
 
 const TITLES: Record<string, string> = {
   "/billing": "Billing & Subscription",
@@ -73,6 +92,7 @@ export function Topbar({ onOpenSidebar }: { onOpenSidebar: () => void }) {
         <QuickActions />
         <NotificationsBell />
         {demoTenant && <RoleSwitcher />}
+        <TenantHomeButton />
       </div>
     </header>
   );
