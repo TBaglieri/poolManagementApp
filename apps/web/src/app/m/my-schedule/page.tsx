@@ -1,21 +1,22 @@
 "use client";
 
 import { useMemo } from "react";
-import Link from "next/link";
-import { CalendarPlus, CalendarX2, ArrowLeftRight, Plane } from "lucide-react";
+import { CalendarPlus } from "lucide-react";
 import {
-  shifts as seedShifts, facilityName, format24h, formatWeekday, formatShortDate,
+  facilityName, format24h, formatWeekday, formatShortDate,
   shiftDuration, SHIFT_POSITION_LABELS,
 } from "@poolops/shared";
 import { mondayOf } from "@poolops/scheduling";
 import { useAccess } from "@/lib/access";
 import { useDemo } from "@/lib/store";
 import { MSection } from "@/components/mobile/mobile-shell";
+import { StaffRequestButtons } from "@/components/schedule/staff-requests";
 import { cn } from "@/lib/cn";
 
 export default function MobileMySchedule() {
   const { staff: me } = useAccess();
-  const published = useDemo((s) => s.publishedShifts);
+  const shifts = useDemo((s) => s.shifts);
+  const pickUpShift = useDemo((s) => s.pickUpShift);
 
   const weekStart = mondayOf(0);
   const dayKeys = useMemo(() => Array.from({ length: 7 }, (_, i) => {
@@ -23,7 +24,7 @@ export default function MobileMySchedule() {
     return d.toISOString().slice(0, 10);
   }), [weekStart]);
 
-  const all = useMemo(() => [...seedShifts, ...published], [published]);
+  const all = shifts;
   const myShifts = all
     .filter((s) => s.assignedStaffId === me?.id && dayKeys.includes(s.date))
     .sort((a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start));
@@ -78,7 +79,7 @@ export default function MobileMySchedule() {
                   <p className="text-sm font-semibold text-slate-800">{formatWeekday(s.date)} · {format24h(s.start)}–{format24h(s.end)}</p>
                   <p className="text-xs text-slate-400">{facilityName(s.facilityId)}</p>
                 </div>
-                <button className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white">Pick up</button>
+                <button onClick={() => me && pickUpShift(s.id, me.id)} className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white active:bg-amber-700">Pick up</button>
               </li>
             ))}
           </ul>
@@ -86,17 +87,8 @@ export default function MobileMySchedule() {
       )}
 
       <MSection title="Requests">
-        <div className="grid grid-cols-2 gap-2.5">
-          <button className="flex flex-col items-center gap-1.5 rounded-2xl border border-slate-200 bg-white py-4">
-            <Plane className="h-5 w-5 text-brand-600" />
-            <span className="text-xs font-medium text-slate-600">Request time off</span>
-          </button>
-          <button className="flex flex-col items-center gap-1.5 rounded-2xl border border-slate-200 bg-white py-4">
-            <ArrowLeftRight className="h-5 w-5 text-brand-600" />
-            <span className="text-xs font-medium text-slate-600">Trade a shift</span>
-          </button>
-        </div>
-        <Link href="/dashboard" className="mt-3 block text-center text-xs text-slate-400">Managers approve requests on the web dashboard →</Link>
+        {me && <StaffRequestButtons me={me} myShifts={myShifts} />}
+        <p className="mt-3 text-center text-xs text-slate-400">A manager reviews and approves each request.</p>
       </MSection>
     </div>
   );

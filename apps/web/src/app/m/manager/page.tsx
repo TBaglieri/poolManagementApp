@@ -22,7 +22,7 @@ export default function MobileManager() {
   const timeOff = useDemo((s) => s.timeOff);
   const trades = useDemo((s) => s.trades);
   const clock = useDemo((s) => s.clock);
-  const published = useDemo((s) => s.publishedShifts);
+  const shifts = useDemo((s) => s.shifts);
   const reviewTimeOff = useDemo((s) => s.reviewTimeOff);
   const reviewTrade = useDemo((s) => s.reviewTrade);
 
@@ -31,9 +31,8 @@ export default function MobileManager() {
   const clockedIn = clock.filter((c) => c.status === "clocked_in" || c.status === "late");
 
   const todays = useMemo(() => {
-    const all = [...seedShifts, ...published];
-    return all.filter((s) => s.date === todayKey && (facilityId === "all" || s.facilityId === facilityId));
-  }, [published, facilityId]);
+    return shifts.filter((s) => s.date === todayKey && (facilityId === "all" || s.facilityId === facilityId));
+  }, [shifts, facilityId]);
   const coverage = todays.length ? Math.round((todays.filter((s) => s.assignedStaffId).length / todays.length) * 100) : 100;
 
   if (!can("schedule.approve") && !can("schedule.manage")) {

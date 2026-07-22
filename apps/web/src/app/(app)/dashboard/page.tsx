@@ -37,13 +37,14 @@ export default function DashboardPage() {
   const messages = useDemo((s) => s.messages);
   const clock = useDemo((s) => s.clock);
   const patron = useDemo((s) => s.patron);
+  const shifts = useDemo((s) => s.shifts);
   const reviewTimeOff = useDemo((s) => s.reviewTimeOff);
   const reviewTrade = useDemo((s) => s.reviewTrade);
 
   const facMatch = (fid: string) => facilityId === "all" || fid === facilityId;
   const todayKey = dateKey(new Date());
 
-  const todayShiftAll = seedShifts;
+  const todayShiftAll = shifts;
   const todaysShifts = todayShiftAll.filter((s) => s.date === todayKey && facMatch(s.facilityId));
   const openShifts = todayShiftAll.filter((s) => s.status === "open" && facMatch(s.facilityId));
   const coverage = todaysShifts.length ? Math.round((todaysShifts.filter((s) => s.assignedStaffId).length / todaysShifts.length) * 100) : 100;

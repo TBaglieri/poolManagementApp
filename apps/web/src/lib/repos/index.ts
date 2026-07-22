@@ -15,15 +15,15 @@ import {
   facilities as seedFacilities, staff as seedStaff, organization as seedOrg,
   channels as seedChannels, messages as seedMessages, notifications as seedNotifications,
   chemicalLogs as seedChem, maintenanceIssues as seedIssues, timeClockEntries as seedClock,
-  timeOffRequests as seedTimeOff, shifts as seedShifts, lessonClasses as seedLessons,
+  timeOffRequests as seedTimeOff, shiftTradeRequests as seedTrades, shifts as seedShifts, lessonClasses as seedLessons,
   households as seedHouseholds, members as seedMembers, documents as seedDocuments,
   inspectionResults as seedInspections, staffCertifications as seedCerts,
   SUBSCRIPTION_PLANS, SETUP_PACKAGES,
   type Facility, type StaffProfile, type Organization, type Channel, type Message,
   type Notification, type ChemicalLog, type MaintenanceIssue, type TimeClockEntry,
-  type TimeOffRequest, type Shift,
+  type TimeOffRequest, type Shift, type ShiftTradeRequest, type RequestStatus,
 } from "@poolops/shared";
-import { activeMode, selectOr, insertOr, db, type RepoResult, type DataSource } from "./db";
+import { activeMode, selectOr, insertOr, updateOr, db, type RepoResult, type DataSource } from "./db";
 
 export { activeMode } from "./db";
 export { checkHealth, useHealth, healthLabel, type Health, type HealthStatus } from "./health";
@@ -93,6 +93,30 @@ function mapClock(r: any): TimeClockEntry {
   };
 }
 
+function mapShift(r: any): Shift {
+  return {
+    id: s(r.id), facilityId: s(r.facility_id), position: r.position ?? "lifeguard",
+    date: s(r.shift_date ?? r.date), start: s(r.start_time ?? r.start), end: s(r.end_time ?? r.end),
+    assignedStaffId: r.assigned_staff_id ?? null, status: r.status ?? "published", notes: r.notes ?? undefined,
+  };
+}
+
+function mapTrade(r: any): ShiftTradeRequest {
+  return {
+    id: s(r.id), shiftId: s(r.shift_id), requestedBy: s(r.requested_by),
+    requestedTo: r.requested_to ?? null, reason: s(r.reason), status: r.status ?? "pending",
+    submittedAt: s(r.created_at ?? r.submitted_at),
+  };
+}
+
+function mapTimeOff(r: any): TimeOffRequest {
+  return {
+    id: s(r.id), staffId: s(r.staff_id), startDate: s(r.start_date), endDate: s(r.end_date),
+    reason: s(r.reason), type: r.type ?? "vacation", status: r.status ?? "pending",
+    submittedAt: s(r.created_at ?? r.submitted_at), reviewedBy: r.reviewed_by ?? undefined,
+  };
+}
+
 /* ------------------------------- repositories ----------------------------- */
 
 export const repos = {
@@ -157,19 +181,57 @@ export const repos = {
   },
 
   timeOff: {
-    listApproved: () => selectOr<any, TimeOffRequest>("time_off_requests", seedTimeOff.filter((t) => t.status === "approved"), (r) => ({
-      id: s(r.id), staffId: s(r.staff_id), startDate: s(r.start_date), endDate: s(r.end_date),
-      reason: s(r.reason), type: r.type ?? "vacation", status: r.status ?? "approved",
-      submittedAt: s(r.created_at), reviewedBy: r.reviewed_by ?? undefined,
-    }), (q) => q.eq("status", "approved")),
+    list: () => selectOr<any, TimeOffRequest>("time_off_requests", seedTimeOff, mapTimeOff, (q) => q.order("created_at", { ascending: false })),
+    listApproved: () => selectOr<any, TimeOffRequest>("time_off_requests",
+      seedTimeOff.filter((t) => t.status === "approved"), mapTimeOff, (q) => q.eq("status", "approved")),
+    create: (payload: {
+      staffId: string; startDate: string; endDate: string; reason?: string; type?: string; organizationId?: string;
+    }) => insertOr<TimeOffRequest>("time_off_requests", {
+      staff_id: payload.staffId, start_date: payload.startDate, end_date: payload.endDate,
+      reason: payload.reason ?? null, type: payload.type ?? "vacation", status: "pending",
+      organization_id: payload.organizationId ?? null,
+    }, mapTimeOff),
+    /** Approve/deny a request; records the reviewer. */
+    review: (id: string, status: RequestStatus, reviewerProfileId?: string) =>
+      updateOr<TimeOffRequest>("time_off_requests", id, { status, reviewed_by: reviewerProfileId ?? null }, mapTimeOff),
   },
 
   scheduling: {
-    listShifts: () => selectOr<any, Shift>("shifts", seedShifts, (r) => ({
-      id: s(r.id), facilityId: s(r.facility_id), position: r.position ?? "lifeguard", date: s(r.shift_date ?? r.date),
-      start: s(r.start_time ?? r.start), end: s(r.end_time ?? r.end), assignedStaffId: r.assigned_staff_id ?? null,
-      status: r.status ?? "published", notes: r.notes ?? undefined,
-    })),
+    listShifts: () => selectOr<any, Shift>("shifts", seedShifts, mapShift, (q) => q.order("shift_date", { ascending: true })),
+    createShift: (payload: {
+      facilityId: string; position: string; date: string; start: string; end: string;
+      assignedStaffId?: string | null; status?: string; notes?: string; organizationId?: string;
+    }) => insertOr<Shift>("shifts", {
+      facility_id: payload.facilityId, position: payload.position, shift_date: payload.date,
+      start_time: payload.start, end_time: payload.end, assigned_staff_id: payload.assignedStaffId ?? null,
+      status: payload.status ?? (payload.assignedStaffId ? "assigned" : "open"), notes: payload.notes ?? null,
+      organization_id: payload.organizationId ?? null,
+    }, mapShift),
+    /** Assign/unassign, change status, or edit notes on an existing shift. */
+    updateShift: (id: string, patch: Partial<{ assignedStaffId: string | null; status: string; notes: string; position: string; start: string; end: string; date: string }>) =>
+      updateOr<Shift>("shifts", id, {
+        ...(patch.assignedStaffId !== undefined ? { assigned_staff_id: patch.assignedStaffId } : {}),
+        ...(patch.status !== undefined ? { status: patch.status } : {}),
+        ...(patch.notes !== undefined ? { notes: patch.notes } : {}),
+        ...(patch.position !== undefined ? { position: patch.position } : {}),
+        ...(patch.start !== undefined ? { start_time: patch.start } : {}),
+        ...(patch.end !== undefined ? { end_time: patch.end } : {}),
+        ...(patch.date !== undefined ? { shift_date: patch.date } : {}),
+      }, mapShift),
+  },
+
+  /** Shift swap / sub requests (staff ask to give up or trade a shift). */
+  trades: {
+    list: () => selectOr<any, ShiftTradeRequest>("shift_trade_requests", seedTrades, mapTrade, (q) => q.order("created_at", { ascending: false })),
+    create: (payload: {
+      shiftId: string; requestedBy: string; requestedTo?: string | null; reason?: string; organizationId?: string;
+    }) => insertOr<ShiftTradeRequest>("shift_trade_requests", {
+      shift_id: payload.shiftId, requested_by: payload.requestedBy, requested_to: payload.requestedTo ?? null,
+      reason: payload.reason ?? null, status: "pending", organization_id: payload.organizationId ?? null,
+    }, mapTrade),
+    /** Approve/deny a swap request. On approval the caller reassigns the shift. */
+    review: (id: string, status: RequestStatus) =>
+      updateOr<ShiftTradeRequest>("shift_trade_requests", id, { status }, mapTrade),
   },
 
   quoteRequests: {

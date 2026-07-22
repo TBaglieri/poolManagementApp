@@ -6,7 +6,7 @@ import {
   Sparkles, CalendarDays, CheckCircle2, XCircle, Smartphone, ArrowRight, Clock,
 } from "lucide-react";
 import {
-  shifts as seedShifts, facilities, getStaff, staffName, facilityName,
+  facilities, getStaff, staffName, facilityName,
   format24h, formatWeekday, formatShortDate, shiftDuration, SHIFT_POSITION_LABELS,
 } from "@poolops/shared";
 import { mondayOf } from "@poolops/scheduling";
@@ -19,6 +19,7 @@ import { StaffAvatar } from "@/components/ui/avatar";
 import { StatusBadge } from "@/components/ui/badge";
 import { PermissionGate } from "@/components/ui/permission-gate";
 import { requestStatusMeta } from "@/lib/status";
+import { StaffRequestButtons } from "@/components/schedule/staff-requests";
 import { cn } from "@/lib/cn";
 
 const FAC_COLOR: Record<string, string> = {
@@ -33,18 +34,19 @@ function dayDate(weekStart: string, i: number) {
 
 export default function SchedulePage() {
   const { can, staff: me, facilityId } = useAccess();
-  const published = useDemo((s) => s.publishedShifts);
+  const shifts = useDemo((s) => s.shifts);
   const timeOff = useDemo((s) => s.timeOff);
   const trades = useDemo((s) => s.trades);
   const reviewTimeOff = useDemo((s) => s.reviewTimeOff);
   const reviewTrade = useDemo((s) => s.reviewTrade);
+  const pickUpShift = useDemo((s) => s.pickUpShift);
 
   const weekStart = mondayOf(0);
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => dayDate(weekStart, i)), [weekStart]);
   const dayKeys = days.map((d) => d.toISOString().slice(0, 10));
 
   const facMatch = (fid: string) => facilityId === "all" || fid === facilityId;
-  const allShifts = useMemo(() => [...seedShifts, ...published], [published]);
+  const allShifts = shifts;
   const weekShifts = allShifts.filter((s) => dayKeys.includes(s.date) && facMatch(s.facilityId));
 
   const isManager = can("schedule.view");
@@ -200,6 +202,38 @@ export default function SchedulePage() {
                       <p className="text-xs text-slate-400">{facilityName(s.facilityId)} · {SHIFT_POSITION_LABELS[s.position]}</p>
                     </div>
                     <StatusBadge {...requestStatusMeta("approved")} dot={false} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </SectionCard>
+
+          {me && (
+            <SectionCard title="Requests" subtitle="Time off, subs & swaps — a manager approves each one">
+              <StaffRequestButtons me={me} myShifts={myShifts} />
+            </SectionCard>
+          )}
+
+          <SectionCard title="Open shifts to pick up" subtitle="Shifts at your facilities that need coverage">
+            {openToPickUp.length === 0 ? (
+              <p className="py-6 text-center text-sm text-slate-400">No open shifts right now. Nice — you're covered.</p>
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {openToPickUp.map((s) => (
+                  <li key={s.id} className="flex items-center gap-3 py-3">
+                    <span className="flex h-10 w-10 flex-col items-center justify-center rounded-lg bg-amber-50 text-amber-700">
+                      <span className="text-[10px] font-semibold uppercase">{formatWeekday(s.date)}</span>
+                    </span>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-slate-800">{format24h(s.start)} – {format24h(s.end)}</p>
+                      <p className="text-xs text-slate-400">{facilityName(s.facilityId)} · {SHIFT_POSITION_LABELS[s.position]}</p>
+                    </div>
+                    <button
+                      onClick={() => me && pickUpShift(s.id, me.id)}
+                      className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-amber-700"
+                    >
+                      Pick up
+                    </button>
                   </li>
                 ))}
               </ul>

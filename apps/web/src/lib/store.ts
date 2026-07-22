@@ -11,7 +11,7 @@ import {
   channels as seedChannels, chemicalLogs as seedChem, checklistCompletions as seedChecklists,
   maintenanceIssues as seedIssues, messages as seedMessages, notifications as seedNotifications,
   onboardingSubmissions as seedOnboarding, patronCounts as seedPatron, shiftReports as seedReports,
-  shiftTradeRequests as seedTrades, timeClockEntries as seedClock, timeOffRequests as seedTimeOff,
+  shiftTradeRequests as seedTrades, shifts as seedShifts, timeClockEntries as seedClock, timeOffRequests as seedTimeOff,
 } from "@poolops/shared";
 import type { ScheduleDraft } from "@poolops/scheduling";
 import { repos, activeMode } from "./repos";
@@ -59,7 +59,8 @@ interface DemoState {
   onboarding: typeof seedOnboarding;
   channels: typeof seedChannels;
   drafts: ScheduleDraft[];
-  publishedShifts: Shift[];
+  /** All live shifts (seeded + published). Mutable so assign/pick-up/trade work. */
+  shifts: Shift[];
   scheduleSettings: ScheduleSettings;
 
   addDraft: (draft: ScheduleDraft) => void;
@@ -70,6 +71,14 @@ interface DemoState {
 
   reviewTimeOff: (id: ID, status: RequestStatus, reviewer: ID) => void;
   reviewTrade: (id: ID, status: RequestStatus) => void;
+  /** Staff creates a time-off request (starts pending). */
+  addTimeOff: (req: { staffId: ID; startDate: string; endDate: string; reason: string; type: TimeOffRequest["type"] }) => void;
+  /** Staff creates a shift swap / sub request (starts pending). */
+  addTrade: (req: { shiftId: ID; requestedBy: ID; requestedTo: ID | null; reason: string }) => void;
+  /** Assign or unassign a shift (manager action or trade approval). */
+  assignShift: (shiftId: ID, staffId: ID | null) => void;
+  /** Staff claims an open shift for themselves. No-op if already assigned. */
+  pickUpShift: (shiftId: ID, staffId: ID) => void;
   toggleClock: (staffId: ID, facilityId: ID) => void;
   addIssue: (issue: Omit<MaintenanceIssue, "id" | "reportedAt">) => void;
   setIssueStatus: (id: ID, status: IssueStatus) => void;
@@ -84,7 +93,7 @@ interface DemoState {
   setOnboardingStep: (staffId: ID, step: OnboardingStepKey, status: SubmissionStatus) => void;
   /** Replace store slices with live Supabase data (used by SupabaseHydrator). */
   hydrate: (partial: Partial<Pick<DemoState,
-    "messages" | "channels" | "chemicals" | "issues" | "notifications" | "clock" | "timeOff">>) => void;
+    "messages" | "channels" | "chemicals" | "issues" | "notifications" | "clock" | "timeOff" | "trades" | "shifts">>) => void;
 }
 
 export const useDemo = create<DemoState>((set, get) => ({
@@ -101,7 +110,7 @@ export const useDemo = create<DemoState>((set, get) => ({
   onboarding: clone(seedOnboarding),
   channels: clone(seedChannels),
   drafts: [],
-  publishedShifts: [],
+  shifts: clone(seedShifts),
   scheduleSettings: { autoPostToAllTeam: true, allowStaffComments: true, notifyInApp: true, emailSms: false },
 
   addDraft: (draft) => set((s) => ({ drafts: [draft, ...s.drafts.filter((d) => d.id !== draft.id)] })),
@@ -155,7 +164,7 @@ export const useDemo = create<DemoState>((set, get) => ({
         : s.notifications;
       return {
         drafts: s.drafts.map((d) => (d.id === draftId ? { ...d, status: "published" } : d)),
-        publishedShifts: [...newShifts, ...s.publishedShifts],
+        shifts: [...newShifts, ...s.shifts],
         messages, notifications,
       };
     });
@@ -165,13 +174,73 @@ export const useDemo = create<DemoState>((set, get) => ({
   setScheduleSetting: (key, value) =>
     set((s) => ({ scheduleSettings: { ...s.scheduleSettings, [key]: value } })),
 
-  reviewTimeOff: (id, status, reviewer) =>
+  reviewTimeOff: (id, status, reviewer) => {
     set((s) => ({
       timeOff: s.timeOff.map((r) => (r.id === id ? { ...r, status, reviewedBy: reviewer } : r)),
-    })),
+    }));
+    if (activeMode() === "supabase") void repos.timeOff.review(id, status, reviewer);
+  },
 
-  reviewTrade: (id, status) =>
-    set((s) => ({ trades: s.trades.map((t) => (t.id === id ? { ...t, status } : t)) })),
+  /**
+   * Approve/deny a swap. On approval the shift is reassigned to `requestedTo`
+   * (a specific sub) or opened up for anyone to pick up (an open sub request).
+   */
+  reviewTrade: (id, status) => {
+    const trade = get().trades.find((t) => t.id === id);
+    const reassign = trade && status === "approved"
+      ? { shiftId: trade.shiftId, assignedStaffId: trade.requestedTo ?? null }
+      : null;
+    set((s) => ({
+      trades: s.trades.map((t) => (t.id === id ? { ...t, status } : t)),
+      shifts: reassign
+        ? s.shifts.map((sh) => (sh.id === reassign.shiftId ? { ...sh, assignedStaffId: reassign.assignedStaffId, status: reassign.assignedStaffId ? "assigned" : "open" } : sh))
+        : s.shifts,
+    }));
+    if (activeMode() === "supabase") {
+      void repos.trades.review(id, status);
+      if (reassign) void repos.scheduling.updateShift(reassign.shiftId, { assignedStaffId: reassign.assignedStaffId, status: reassign.assignedStaffId ? "assigned" : "open" });
+    }
+  },
+
+  addTimeOff: (req) => {
+    const item: TimeOffRequest = {
+      id: uid("to"), staffId: req.staffId, startDate: req.startDate, endDate: req.endDate,
+      reason: req.reason, type: req.type, status: "pending", submittedAt: new Date().toISOString(),
+    };
+    set((s) => ({ timeOff: [item, ...s.timeOff] }));
+    if (activeMode() === "supabase") {
+      void repos.timeOff.create({ staffId: req.staffId, startDate: req.startDate, endDate: req.endDate, reason: req.reason, type: req.type });
+    }
+  },
+
+  addTrade: (req) => {
+    const item: ShiftTradeRequest = {
+      id: uid("tr"), shiftId: req.shiftId, requestedBy: req.requestedBy, requestedTo: req.requestedTo,
+      reason: req.reason, status: "pending", submittedAt: new Date().toISOString(),
+    };
+    set((s) => ({ trades: [item, ...s.trades] }));
+    if (activeMode() === "supabase") {
+      void repos.trades.create({ shiftId: req.shiftId, requestedBy: req.requestedBy, requestedTo: req.requestedTo, reason: req.reason });
+    }
+  },
+
+  assignShift: (shiftId, staffId) => {
+    set((s) => ({
+      shifts: s.shifts.map((sh) => (sh.id === shiftId ? { ...sh, assignedStaffId: staffId, status: staffId ? "assigned" : "open" } : sh)),
+    }));
+    if (activeMode() === "supabase") void repos.scheduling.updateShift(shiftId, { assignedStaffId: staffId, status: staffId ? "assigned" : "open" });
+  },
+
+  pickUpShift: (shiftId, staffId) => {
+    let claimed = false;
+    set((s) => ({
+      shifts: s.shifts.map((sh) => {
+        if (sh.id === shiftId && !sh.assignedStaffId) { claimed = true; return { ...sh, assignedStaffId: staffId, status: "assigned" }; }
+        return sh;
+      }),
+    }));
+    if (claimed && activeMode() === "supabase") void repos.scheduling.updateShift(shiftId, { assignedStaffId: staffId, status: "assigned" });
+  },
 
   toggleClock: (staffId, facilityId) => {
     const wasClockedIn = get().clock.some(

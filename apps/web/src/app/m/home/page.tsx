@@ -19,14 +19,13 @@ const todayKey = new Date().toISOString().slice(0, 10);
 
 export default function MobileHome() {
   const { staff: me, can } = useAccess();
-  const published = useDemo((s) => s.publishedShifts);
+  const shifts = useDemo((s) => s.shifts);
   const messages = useDemo((s) => s.messages);
   const clock = useDemo((s) => s.clock);
 
   const myShiftToday = useMemo(() => {
-    const all = [...seedShifts, ...published];
-    return all.find((s) => s.assignedStaffId === me?.id && s.date === todayKey);
-  }, [published, me?.id]);
+    return shifts.find((s) => s.assignedStaffId === me?.id && s.date === todayKey);
+  }, [shifts, me?.id]);
 
   const myClock = clock.find((c) => c.staffId === me?.id && (c.status === "clocked_in" || c.status === "late"));
   const latestAnnouncement = [...messages].reverse().find((m) => m.channelId === "ch_all");

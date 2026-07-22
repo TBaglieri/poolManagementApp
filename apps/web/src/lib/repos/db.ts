@@ -76,3 +76,28 @@ export async function insertOr<TOut>(
     return { ok: false, source: "supabase", error: e?.message ?? "Insert failed", data: null };
   }
 }
+
+/**
+ * Run a Supabase UPDATE by primary key. Mirrors insertOr. Used for the many
+ * "change status / assign / review" flows the demo store previously kept only
+ * in memory (clock-out, approvals, issue status, message pins, etc.).
+ */
+export async function updateOr<TOut>(
+  table: string,
+  id: string,
+  patch: Record<string, unknown>,
+  map?: (row: any) => TOut,
+): Promise<{ ok: boolean; source: DataSource; error: string | null; data: TOut | null }> {
+  if (activeMode() !== "supabase") return { ok: true, source: "mock", error: null, data: null };
+  const client = db();
+  if (!client) return { ok: false, source: "mock", error: "Supabase not configured", data: null };
+  try {
+    const { data, error } = await client.from(table).update(patch as any).eq("id", id).select().single();
+    if (error) {
+      return { ok: false, source: "supabase", error: isMissingTable(error) ? `Table "${table}" not found — run supabase/schema.sql` : error.message, data: null };
+    }
+    return { ok: true, source: "supabase", error: null, data: map && data ? map(data) : (data as TOut) };
+  } catch (e: any) {
+    return { ok: false, source: "supabase", error: e?.message ?? "Update failed", data: null };
+  }
+}
