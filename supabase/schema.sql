@@ -772,6 +772,49 @@ create table if not exists public.audit_logs (
 create index if not exists idx_audit_org on public.audit_logs(organization_id, created_at);
 
 -- =============================================================================
+-- USER MANAGEMENT: invitations + delegated management permissions
+-- =============================================================================
+
+create table if not exists public.staff_invitations (
+  id            uuid primary key default gen_random_uuid(),
+  organization_id uuid references public.organizations(id) on delete cascade,
+  email         text not null,
+  first_name    text,
+  last_name     text,
+  role_id       text references public.roles(slug),
+  home_facility_id uuid references public.facilities(id) on delete set null,
+  invited_by    uuid references public.profiles(id) on delete set null,
+  status        text not null default 'draft',   -- draft|sent|pending|accepted|expired|canceled
+  invite_token  text,
+  token_hash    text,
+  expires_at    timestamptz default (now() + interval '14 days'),
+  accepted_at   timestamptz,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+create index if not exists idx_invites_org on public.staff_invitations(organization_id);
+create index if not exists idx_invites_email on public.staff_invitations(email);
+create index if not exists idx_invites_status on public.staff_invitations(status);
+
+create table if not exists public.user_management_permissions (
+  id            uuid primary key default gen_random_uuid(),
+  organization_id uuid references public.organizations(id) on delete cascade,
+  user_id       uuid references public.profiles(id) on delete cascade,
+  member_id     uuid references public.organization_members(id) on delete cascade,
+  can_invite_users boolean default false,
+  can_manage_roles boolean default false,
+  can_manage_facilities boolean default false,
+  can_manage_payroll boolean default false,
+  can_manage_onboarding boolean default false,
+  can_approve_schedules boolean default false,
+  can_deactivate_users boolean default false,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+create index if not exists idx_ump_org on public.user_management_permissions(organization_id);
+create index if not exists idx_ump_user on public.user_management_permissions(user_id);
+
+-- =============================================================================
 -- Extra indexes on status / created_at for common filters & ordering
 -- =============================================================================
 create index if not exists idx_shifts_status on public.shifts(status);

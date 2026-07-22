@@ -1,8 +1,10 @@
 "use client";
 
-import { usePathname } from "next/navigation";
-import { Menu, Search } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Menu, Search, FlaskConical, LogOut } from "lucide-react";
 import { ALL_NAV_ITEMS } from "@poolops/shared";
+import { useAccess } from "@/lib/access";
+import { useSession } from "@/lib/session";
 import { FacilitySwitcher } from "./facility-switcher";
 import { RoleSwitcher } from "./role-switcher";
 import { NotificationsBell } from "./notifications";
@@ -27,6 +29,10 @@ function pageTitle(pathname: string): string {
 
 export function Topbar({ onOpenSidebar }: { onOpenSidebar: () => void }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { isDemo } = useAccess();
+  const exitDemo = useSession((s) => s.exitDemo);
+
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-slate-200 bg-white/85 px-4 backdrop-blur-md sm:px-6">
       <button onClick={onOpenSidebar} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 lg:hidden" aria-label="Open menu">
@@ -44,11 +50,25 @@ export function Topbar({ onOpenSidebar }: { onOpenSidebar: () => void }) {
       </div>
 
       <div className="ml-auto flex items-center gap-2">
+        {isDemo && (
+          <div className="flex items-center gap-1.5">
+            <span className="hidden items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-amber-700 ring-1 ring-inset ring-amber-600/30 sm:inline-flex">
+              <FlaskConical className="h-3.5 w-3.5" /> Demo Mode
+            </span>
+            <button
+              onClick={() => { exitDemo(); router.push("/login"); }}
+              className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-50"
+              title="Leave demo and create your real organization"
+            >
+              <LogOut className="h-3.5 w-3.5" /> Exit Demo
+            </button>
+          </div>
+        )}
         <div className="hidden md:block"><SyncStatus /></div>
         <FacilitySwitcher />
         <QuickActions />
         <NotificationsBell />
-        <RoleSwitcher />
+        {isDemo && <RoleSwitcher />}
       </div>
     </header>
   );

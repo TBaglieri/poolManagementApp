@@ -19,8 +19,8 @@ const FEATURED: RoleSlug[] = ["org_admin", "lifeguard", "lifeguard_manager", "pa
 
 export default function LoginPage() {
   const router = useRouter();
-  const loginAs = useSession((s) => s.loginAs);
-  const setEmailSession = useSession((s) => s.setEmail);
+  const enterDemo = useSession((s) => s.enterDemo);
+  const loginReal = useSession((s) => s.loginReal);
   const supabaseMode = getEffectiveDataMode() === "supabase";
   const [email, setEmail] = useState(supabaseMode ? "" : "director@tideandtown.example");
   const [password, setPassword] = useState(supabaseMode ? "" : "demo-password");
@@ -30,30 +30,34 @@ export default function LoginPage() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [authInfo, setAuthInfo] = useState<string | null>(null);
 
+  // DEMO: preview the product as any role on seeded data (clearly separated).
   const enter = (role: RoleSlug) => {
-    loginAs(role);
+    enterDemo(role);
     router.push(surfaceHref(role));
   };
 
-  // Real Supabase auth (supabase mode). After auth, the user enters the workspace;
-  // their org/role resolves from Supabase once membership rows exist, else defaults
-  // to Org Admin so a new pool can start setting up immediately.
+  // REAL Supabase auth. New users have no org yet → routed to /setup to create one.
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError(null); setAuthInfo(null);
-    if (!supabaseMode) { enter("org_admin"); return; }
+    if (!supabaseMode) {
+      // Mock mode: treat the email/password form as a demo admin sign-in.
+      enter("org_admin");
+      return;
+    }
     if (!email || !password) { setAuthError("Enter an email and password."); return; }
     setBusy(true);
     const res = mode === "signin" ? await signIn(email, password) : await signUp(email, password);
     setBusy(false);
     if (!res.ok) { setAuthError(res.error); return; }
     if (res.needsConfirmation) {
-      setAuthInfo("Account created. Check your email to confirm, then sign in. (Tip: enable auto-confirm in Supabase Auth settings for instant local testing.)");
+      setAuthInfo("Account created. Check your email to confirm, then sign in. (Tip: enable Auto-Confirm in Supabase → Auth → Providers → Email for instant local testing.)");
       setMode("signin");
       return;
     }
-    setEmailSession(email);
-    enter("org_admin");
+    // Real session. New customers go to org setup; returning ones to the dashboard.
+    loginReal(email, "org_admin", mode === "signin");
+    router.push(mode === "signup" ? "/setup" : "/dashboard");
   };
 
   const others = ROLE_LIST.filter((r) => !FEATURED.includes(r.slug));

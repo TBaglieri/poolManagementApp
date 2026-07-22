@@ -38,6 +38,13 @@ The repo only ever contains a **placeholder** for `SUPABASE_SERVICE_ROLE_KEY`.
   - Confirm lowest-level staff can only act on **their own** rows (time off, time clock, onboarding, trades).
   - Confirm payroll/tax tables are readable only by payroll/admin roles.
 
+## User invitations & delegated management
+
+- The invite/admin-create endpoint (`/api/admin/invite-user`) runs **server-side only** and uses the service-role admin client. It **must validate the caller's permission** before creating users — it checks the caller is authenticated and that their `organization_members.role_slug` is allowed to invite. Lowest-level staff (lifeguard) can never invite.
+- **Hierarchy rule:** a user cannot grant a role or management permission higher than their own. Only Organization Admin / Super Admin may grant full administrative access. The invite UI enforces this (role list filtered by level; management toggles admin-only), and RLS + the server route must enforce it for real.
+- Deactivating a user removes access but retains historical records (shifts, logs, payroll) — never hard-delete audit-relevant rows.
+- `staff_invitations` tokens should be stored hashed (`token_hash`) in production; treat invite links as secrets with short expiry.
+
 ## Audit logging
 
 - Sensitive actions (viewing payroll, accessing tax docs, publishing schedules, exporting data) should write to `audit_logs`.

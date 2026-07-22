@@ -138,6 +138,23 @@ Plans: **Small Pool** ($49/mo, $529/yr), **Medium Pool** ($149/mo, $1,609/yr), *
 - Manage at `/settings/roles` and `/settings/permissions`.
 - Example guarantees: payroll role can open `/payroll`; lowest-level staff **cannot**; only managers/admins can reach the Auto Builder and publish.
 
+## Demo vs Real customer mode
+
+The app cleanly separates two modes (tracked in `useSession.mode`):
+
+- **Demo mode** — entered via "Continue as a demo role" on `/login`. Seeded data, a **Demo Mode** badge + **Exit Demo** button in the top bar, a "Create Your Real Organization" CTA banner, and the role switcher (preview any of the 12 roles). Changes use sample data.
+- **Real customer mode** — entered via Supabase **sign up / sign in**. New users are routed to `/setup` (a 7-step **org-creation wizard**: name, type, plan, setup package, scale, first facility, invite). No demo badge, no role switcher; role comes from `organization_members`. The app never traps you in demo mode.
+
+## Account creation, invites & delegated management
+
+- **Invite by email**: Staff → *Invite staff* or **Settings → Users & Access** (`/settings/users`, `/staff/invites`). The Invite modal collects email/name/role/facility/employment + management-permission toggles, creates an invitation (statuses: draft/sent/pending/accepted/expired/canceled), and produces an **accept link** (`/accept-invite/[token]`). Email sending is a placeholder until a provider is wired.
+- **Server route**: `/api/admin/invite-user` uses the service-role admin client **server-side only**, validates the caller's permission, and creates the Supabase Auth user + `staff_invitations` record.
+- **Hierarchy enforced**: you can only assign roles at/below your level; only Org Admin / Super Admin can grant management permissions. Lowest-level staff can't invite or manage users. New tables: `staff_invitations`, `user_management_permissions`.
+
+## Performance & deployment
+
+See **[PERFORMANCE.md](./PERFORMANCE.md)** (persistent shell, lazy charts, route progress, cached stores) and **[VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md)** (root dir `apps/web`, env vars, Supabase config).
+
 ## GitHub workflow
 
 ```bash

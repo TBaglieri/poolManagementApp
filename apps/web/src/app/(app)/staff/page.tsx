@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { Search, Mail, Phone, Cake, Calendar, Shield } from "lucide-react";
 import {
   staff as seedStaff, facilities, facilityName, certificationsForStaff,
@@ -18,6 +19,7 @@ import { ProgressBar } from "@/components/ui/progress";
 import { Drawer, Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/field";
+import { InviteStaffModal } from "@/components/staff/invite-staff-modal";
 import { staffFlagMeta, certStatusMeta } from "@/lib/status";
 
 export default function StaffPage() {
@@ -66,7 +68,12 @@ export default function StaffPage() {
       <PageHeader
         title="Staff Directory"
         subtitle={`${seedStaff.length} team members across ${facilities.length} facilities.`}
-        actions={can("staff.invite") && <Button icon="UserPlus" onClick={() => setInviteOpen(true)}>Invite staff</Button>}
+        actions={can("staff.invite") && (
+          <>
+            <Link href="/staff/invites" className="btn-secondary"><Mail className="h-4 w-4" /> Invites</Link>
+            <Button icon="UserPlus" onClick={() => setInviteOpen(true)}>Invite staff</Button>
+          </>
+        )}
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -172,21 +179,7 @@ export default function StaffPage() {
         )}
       </Drawer>
 
-      <Modal open={inviteOpen} onClose={() => setInviteOpen(false)} title="Invite staff" description="Send an onboarding invite (demo)."
-        footer={<><Button variant="secondary" onClick={() => setInviteOpen(false)}>Cancel</Button><Button onClick={() => setInviteOpen(false)} icon="Send">Send invite</Button></>}>
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="First name" required><Input placeholder="Jordan" /></Field>
-            <Field label="Last name" required><Input placeholder="Lee" /></Field>
-          </div>
-          <Field label="Email" required><Input type="email" placeholder="jordan@example.com" /></Field>
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Role"><Select>{ROLE_LIST.map((r) => <option key={r.slug}>{r.shortName}</option>)}</Select></Field>
-            <Field label="Home facility"><Select>{facilities.map((f) => <option key={f.id}>{f.name}</option>)}</Select></Field>
-          </div>
-          <p className="text-xs text-slate-400">They'll receive an email to complete onboarding, including tax forms and certifications.</p>
-        </div>
-      </Modal>
+      <InviteStaffModal open={inviteOpen} onClose={() => setInviteOpen(false)} />
     </div>
   );
 }

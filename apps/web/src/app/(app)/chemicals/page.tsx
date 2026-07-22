@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { Badge } from "@/components/ui/badge";
 import { AlertCard } from "@/components/ui/alert-card";
-import { MultiLine } from "@/components/charts/charts";
+import { MultiLine } from "@/components/charts/charts-lazy";
 
 const FIELD_LABEL: Record<string, string> = Object.fromEntries(CHEMICAL_FIELDS.map((f) => [f.key, f.short]));
 

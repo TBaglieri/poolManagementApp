@@ -13,7 +13,7 @@ import { StatCard } from "@/components/ui/stat-card";
 import { AccessRestricted } from "@/components/ui/permission-gate";
 import { Field, Select, Input } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
-import { SimpleBar } from "@/components/charts/charts";
+import { SimpleBar } from "@/components/charts/charts-lazy";
 
 export default function PatronCountsPage() {
   const { can, staffId, facilityId } = useAccess();

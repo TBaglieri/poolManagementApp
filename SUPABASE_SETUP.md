@@ -121,6 +121,54 @@ Shared between web and mobile in `packages/supabase/src/realtime.ts`:
 
 Each returns a `RealtimeChannel` (or `null` in mock/unconfigured mode). Always clean up with `client.removeChannel(ch)`.
 
+## Web + Mobile Sync
+
+The web dashboard and the phone app share **one** Supabase project, so a change on one surface appears on the other.
+
+### 1. Web env vars (`.env.local`, repo root or `apps/web/`)
+```
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...        # server-only
+NEXT_PUBLIC_DATA_MODE=supabase
+```
+
+### 2. Mobile env vars (`apps/mobile/.env`)
+```
+EXPO_PUBLIC_SUPABASE_URL=...
+EXPO_PUBLIC_SUPABASE_ANON_KEY=...
+EXPO_PUBLIC_DATA_MODE=supabase
+```
+
+### 3. Why mobile never uses the service role key
+The service role key **bypasses RLS** and is server-only. The mobile app (and all browser code) use only the **anon/publishable** key; access is enforced by RLS. The admin client (`packages/supabase/src/admin.ts`) is imported only by server route handlers (e.g. `/api/admin/invite-user`).
+
+### 4. Tables that sync between web and mobile
+`organizations`, `organization_members`, `profiles`, `roles`, `facilities`, `staff_profiles`, `staff_invitations`, `shifts`, `shift_assignments`, `schedule_drafts`, `schedule_publish_events`, `time_off_requests`, `shift_trade_requests`, `channels`, `messages`, `announcements`, `notifications`, `time_clock_entries`, `maintenance_issues`, `chemical_logs`, `checklist_completions`.
+
+### 5. Enable realtime
+Run `supabase/realtime.sql` (adds the tables above to the `supabase_realtime` publication). Reusable subscription helpers live in `packages/supabase/src/realtime.ts` and are shared by web + mobile: `subscribeToMessages`, `subscribeToAnnouncements`, `subscribeToScheduleChanges`, `subscribeToScheduleDrafts`, `subscribeToSchedulePublishEvents`, `subscribeToShiftAssignments`, `subscribeToTimeOffRequests`, `subscribeToShiftTradeRequests`, `subscribeToClockStatus`, `subscribeToFacilityStatus`, `subscribeToMaintenanceIssues`, `subscribeToChemicalLogs`, `subscribeToChecklistCompletions`, `subscribeToNotifications`, `subscribeToStaffInvitations`, `subscribeToRoleChanges`.
+
+### 6. Test web → mobile schedule publish
+1. Web (manager): Scheduling → Auto Builder → Generate → **Approve & publish**.
+2. This writes `shifts`/`shift_assignments`, a `schedule_publish_events` row, `notifications`, and an All-Team `messages` row.
+3. Phone (staff): open **My Schedule** and **All Team** — the published shifts + announcement appear (on refresh, or instantly with realtime).
+
+### 7. Test mobile → web clock-in
+1. Phone (staff): **Clock** → Clock In → writes `time_clock_entries`.
+2. Web (manager/payroll): **Time Clock** / **Payroll** shows the live clock-in.
+
+### 8. Test chat both ways
+Post in **All Team** on web → appears on phone; post on phone → appears on web. Backed by `messages` (+ realtime).
+
+### 9. Test maintenance issue sync
+Phone: **Report Issue** → writes `maintenance_issues`. Web: **Maintenance** shows it; status changes on web reflect on phone.
+
+### 10. Test checklist sync
+Phone: **Checklists** → complete → writes `checklist_completions`. Web: **Checklists** dashboard shows the completion.
+
+> In the current build, web and the in-app mobile preview (`/m/*`) share the same Supabase-hydrated store, so these flows work across surfaces once the schema is applied. The Expo app (`apps/mobile`) uses the same anon key + tables; port the `/m/*` screens to React Native to ship native.
+
 ## Security warnings
 
 - **Rotate the exposed service role key** before connecting (Step 3).

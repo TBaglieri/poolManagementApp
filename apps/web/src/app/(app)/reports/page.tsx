@@ -10,7 +10,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { SectionCard } from "@/components/ui/section-card";
 import { StatCard } from "@/components/ui/stat-card";
 import { AccessRestricted } from "@/components/ui/permission-gate";
-import { TrendArea, SimpleBar, DonutChart } from "@/components/charts/charts";
+import { TrendArea, SimpleBar, DonutChart } from "@/components/charts/charts-lazy";
 
 const FAC_COLORS = ["#0891B2", "#0d9488", "#2563eb", "#0ea5e9"];
 

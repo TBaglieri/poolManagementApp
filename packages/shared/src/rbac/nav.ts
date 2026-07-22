@@ -76,6 +76,7 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     title: "System",
     items: [
+      { label: "Users & Access", href: "/settings/users", icon: "UserCog", anyOf: ["staff.invite", "staff.manage"] },
       { label: "Billing", href: "/billing", icon: "CreditCard", anyOf: ["settings.manage"] },
       { label: "Settings", href: "/settings", icon: "Settings", anyOf: ["settings.view"] },
     ],

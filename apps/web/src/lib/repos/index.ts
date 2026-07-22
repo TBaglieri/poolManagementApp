@@ -23,7 +23,7 @@ import {
   type Notification, type ChemicalLog, type MaintenanceIssue, type TimeClockEntry,
   type TimeOffRequest, type Shift,
 } from "@poolops/shared";
-import { activeMode, selectOr, insertOr, db, type RepoResult } from "./db";
+import { activeMode, selectOr, insertOr, db, type RepoResult, type DataSource } from "./db";
 
 export { activeMode } from "./db";
 export { checkHealth, useHealth, healthLabel, type Health, type HealthStatus } from "./health";
@@ -112,6 +112,7 @@ export const repos = {
 
   facilities: {
     list: () => selectOr<any, Facility>("facilities", seedFacilities, mapFacility),
+    create: (payload: Record<string, unknown>) => insertOr<Facility>("facilities", payload, mapFacility),
   },
 
   staff: {
@@ -199,6 +200,47 @@ export const repos = {
       const r = await selectOr<any, { tier: string; status: string }>("organization_subscriptions",
         [{ tier: "medium", status: "active" }], (row) => ({ tier: s(row.plan_tier), status: s(row.billing_status) }), (q) => q.limit(1));
       return { data: r.data[0] ?? null, source: r.source, error: r.error };
+    },
+  },
+
+  /** Real-customer organization setup: org → membership (current user = admin) → first facility. */
+  orgSetup: {
+    async create(input: {
+      orgName: string; orgType: string; plan: string; setupPackage: string;
+      facilityCount: number; poolCount: number; staffEstimate: number;
+      firstFacility: { name: string; address: string; hours: string; poolType: string; capacity: number };
+    }): Promise<{ ok: boolean; source: DataSource; orgId: string | null; error: string | null }> {
+      if (activeMode() !== "supabase") {
+        return { ok: true, source: "mock", orgId: "org_local_demo", error: null };
+      }
+      const client = db();
+      if (!client) return { ok: false, source: "mock", orgId: null, error: "Supabase not configured" };
+      try {
+        const { data: userRes } = await client.auth.getUser();
+        const uid = userRes.user?.id ?? null;
+
+        const org = await insertOr<{ id: string }>("organizations", {
+          name: input.orgName, type: input.orgType, plan: input.plan, billing_status: "trial",
+        }, (r) => ({ id: r.id }));
+        if (!org.ok || !org.data) return { ok: false, source: "supabase", orgId: null, error: org.error };
+        const orgId = org.data.id;
+
+        // Best-effort related rows (don't fail the whole setup if one is missing).
+        if (uid) {
+          await insertOr("organization_members", { organization_id: orgId, profile_id: uid, role_slug: "org_admin", status: "active" });
+        }
+        await insertOr("facilities", {
+          organization_id: orgId, name: input.firstFacility.name, address: input.firstFacility.address,
+          operating_hours: input.firstFacility.hours, pool_type: input.firstFacility.poolType,
+          capacity: input.firstFacility.capacity, status: "open",
+        });
+        await insertOr("organization_subscriptions", {
+          organization_id: orgId, plan_tier: input.plan, billing_status: "trial", billing_cycle: "monthly",
+        });
+        return { ok: true, source: "supabase", orgId, error: null };
+      } catch (e: any) {
+        return { ok: false, source: "supabase", orgId: null, error: e?.message ?? "Setup failed" };
+      }
     },
   },
 

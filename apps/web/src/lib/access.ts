@@ -11,6 +11,8 @@ export function useAccess() {
   const role = useSession((s) => s.role);
   const staffId = useSession((s) => s.staffId);
   const facilityId = useSession((s) => s.facilityId);
+  const mode = useSession((s) => s.mode);
+  const email = useSession((s) => s.email);
   const staff = getStaff(staffId);
   const overrides = staff?.permissionOverrides ?? [];
 
@@ -20,6 +22,9 @@ export function useAccess() {
     staff,
     staffId,
     facilityId,
+    mode,
+    isDemo: mode === "demo",
+    email,
     can: (p: PermissionKey) => (role ? canFn(role, p, overrides) : false),
     canAny: (ps: PermissionKey[]) => (role ? canAnyFn(role, ps, overrides) : false),
   };

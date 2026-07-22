@@ -83,3 +83,9 @@ export const subscribeToChecklistCompletions = (c: SupabaseClient | null, h: Cha
 
 export const subscribeToNotifications = (c: SupabaseClient | null, h: ChangeHandler, userId?: string) =>
   subscribeTable(c, "notifications", h, { filter: userId ? `user_id=eq.${userId}` : undefined });
+
+export const subscribeToStaffInvitations = (c: SupabaseClient | null, h: ChangeHandler, orgId?: string) =>
+  subscribeTable(c, "staff_invitations", h, { filter: orgFilter(orgId) });
+
+export const subscribeToRoleChanges = (c: SupabaseClient | null, h: ChangeHandler, orgId?: string) =>
+  subscribeTable(c, "organization_members", h, { filter: orgFilter(orgId) });

@@ -20,7 +20,7 @@ import { ProgressBar } from "@/components/ui/progress";
 import { StaffAvatar } from "@/components/ui/avatar";
 import { AlertCard } from "@/components/ui/alert-card";
 import { PermissionGate } from "@/components/ui/permission-gate";
-import { TrendArea } from "@/components/charts/charts";
+import { TrendArea } from "@/components/charts/charts-lazy";
 import { facilityStatusMeta, certStatusMeta, priorityMeta } from "@/lib/status";
 
 function greeting() {

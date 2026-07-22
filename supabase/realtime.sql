@@ -46,6 +46,8 @@ select public._add_to_realtime('checklist_completions');
 select public._add_to_realtime('maintenance_issues');
 select public._add_to_realtime('notifications');
 select public._add_to_realtime('facilities');
+select public._add_to_realtime('staff_invitations');
+select public._add_to_realtime('organization_members');
 
 drop function public._add_to_realtime(text);
 
