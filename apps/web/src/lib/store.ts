@@ -14,6 +14,7 @@ import {
   shiftTradeRequests as seedTrades, timeClockEntries as seedClock, timeOffRequests as seedTimeOff,
 } from "@poolops/shared";
 import type { ScheduleDraft } from "@poolops/scheduling";
+import { repos, activeMode } from "./repos";
 
 export interface ScheduleSettings {
   autoPostToAllTeam: boolean;
@@ -81,9 +82,12 @@ interface DemoState {
   addReport: (r: Omit<ShiftReport, "id">) => void;
   markNotificationsRead: () => void;
   setOnboardingStep: (staffId: ID, step: OnboardingStepKey, status: SubmissionStatus) => void;
+  /** Replace store slices with live Supabase data (used by SupabaseHydrator). */
+  hydrate: (partial: Partial<Pick<DemoState,
+    "messages" | "channels" | "chemicals" | "issues" | "notifications" | "clock" | "timeOff">>) => void;
 }
 
-export const useDemo = create<DemoState>((set) => ({
+export const useDemo = create<DemoState>((set, get) => ({
   timeOff: clone(seedTimeOff),
   trades: clone(seedTrades),
   clock: clone(seedClock),
@@ -169,7 +173,10 @@ export const useDemo = create<DemoState>((set) => ({
   reviewTrade: (id, status) =>
     set((s) => ({ trades: s.trades.map((t) => (t.id === id ? { ...t, status } : t)) })),
 
-  toggleClock: (staffId, facilityId) =>
+  toggleClock: (staffId, facilityId) => {
+    const wasClockedIn = get().clock.some(
+      (e) => e.staffId === staffId && (e.status === "clocked_in" || e.status === "late"),
+    );
     set((s) => {
       const existing = s.clock.find(
         (e) => e.staffId === staffId && (e.status === "clocked_in" || e.status === "late"),
@@ -186,12 +193,28 @@ export const useDemo = create<DemoState>((set) => ({
         clockOut: null, breakMinutes: 0, status: "clocked_in", flagged: false,
       };
       return { clock: [entry, ...s.clock] };
-    }),
+    });
+    // Persist a new clock-in to Supabase (clock-out updates are left to a future sync).
+    if (!wasClockedIn && activeMode() === "supabase") {
+      void repos.timeClock.create({
+        staff_id: staffId, facility_id: facilityId, clock_in: new Date().toISOString(),
+        break_minutes: 0, status: "clocked_in", flagged: false,
+      });
+    }
+  },
 
-  addIssue: (issue) =>
+  addIssue: (issue) => {
     set((s) => ({
       issues: [{ ...issue, id: uid("mi"), reportedAt: new Date().toISOString() }, ...s.issues],
-    })),
+    }));
+    if (activeMode() === "supabase") {
+      void repos.maintenance.create({
+        facility_id: issue.facilityId, area: issue.area, title: issue.title, description: issue.description,
+        priority: issue.priority, status: issue.status, reported_by: issue.reportedBy,
+        assigned_to: issue.assignedTo, due_date: issue.dueDate ?? null,
+      });
+    }
+  },
 
   setIssueStatus: (id, status) =>
     set((s) => ({ issues: s.issues.map((i) => (i.id === id ? { ...i, status } : i)) })),
@@ -212,10 +235,18 @@ export const useDemo = create<DemoState>((set) => ({
         ...s.chemicals,
       ],
     }));
+    if (activeMode() === "supabase") {
+      void repos.chemicals.create({
+        facility_id: log.facilityId, pool_id: log.poolId, recorded_by: log.recordedBy,
+        free_chlorine: log.freeChlorine, combined_chlorine: log.combinedChlorine, ph: log.ph,
+        alkalinity: log.alkalinity, calcium_hardness: log.calciumHardness, cyanuric_acid: log.cyanuricAcid,
+        water_temp: log.waterTemp, notes: log.notes ?? null, out_of_range: flags,
+      });
+    }
     return flags;
   },
 
-  postMessage: (channelId, senderId, body, opts = {}) =>
+  postMessage: (channelId, senderId, body, opts = {}) => {
     set((s) => ({
       messages: [
         ...s.messages,
@@ -225,7 +256,13 @@ export const useDemo = create<DemoState>((set) => ({
           priority: opts.priority ?? "normal", kind: opts.kind ?? "message", linkUrl: opts.linkUrl,
         },
       ],
-    })),
+    }));
+    if (activeMode() === "supabase") {
+      void repos.chat.postMessage(channelId, senderId, body, {
+        pinned: opts.pinned, priority: opts.priority, kind: opts.kind, linkUrl: opts.linkUrl, template: opts.template,
+      });
+    }
+  },
 
   togglePinMessage: (id) =>
     set((s) => ({ messages: s.messages.map((m) => (m.id === id ? { ...m, pinned: !m.pinned } : m)) })),
@@ -261,4 +298,6 @@ export const useDemo = create<DemoState>((set) => ({
         onboarding: [...s.onboarding, { id: uid("ob"), staffId, step, status, submittedAt }],
       };
     }),
+
+  hydrate: (partial) => set((s) => ({ ...s, ...partial })),
 }));

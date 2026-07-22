@@ -6,12 +6,12 @@ import {
   MessageSquare, ChevronRight, Database,
 } from "lucide-react";
 import { organization, ORG_TYPE_LABELS } from "@poolops/shared";
-import { getSyncStatus, getEffectiveDataMode } from "@poolops/supabase";
 import { useAccess } from "@/lib/access";
 import { useDemo, type ScheduleSettings } from "@/lib/store";
 import { PageHeader } from "@/components/ui/page-header";
 import { SectionCard } from "@/components/ui/section-card";
 import { PermissionGate } from "@/components/ui/permission-gate";
+import { SupabaseStatusCard } from "@/components/shell/supabase-status-card";
 import { cn } from "@/lib/cn";
 
 const SCHEDULE_TOGGLES: { key: keyof ScheduleSettings; label: string; desc: string; icon: typeof Megaphone }[] = [
@@ -25,7 +25,6 @@ export default function SettingsPage() {
   const { roleMeta } = useAccess();
   const settings = useDemo((s) => s.scheduleSettings);
   const setSetting = useDemo((s) => s.setScheduleSetting);
-  const syncStatus = getSyncStatus();
 
   return (
     <div className="space-y-6">
@@ -78,16 +77,10 @@ export default function SettingsPage() {
       </PermissionGate>
 
       {/* Data mode */}
-      <SectionCard title="Data & sync" icon={<span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50 text-brand-600"><Database className="h-4 w-4" /></span>}>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Info label="Effective data mode" value={getEffectiveDataMode()} />
-          <Info label="Sync status" value={syncStatus === "supabase-connected" ? "Live sync (Supabase)" : syncStatus === "supabase-unconfigured" ? "Setup needed" : "Local demo"} />
-          <Info label="Realtime" value={syncStatus === "supabase-connected" ? "Enabled" : "Mock"} />
-        </div>
-        <p className="mt-4 text-xs text-slate-400">
-          Switch modes with <code>NEXT_PUBLIC_DATA_MODE</code> (web) / <code>EXPO_PUBLIC_DATA_MODE</code> (mobile). See SUPABASE_SETUP.md.
-        </p>
-      </SectionCard>
+      <SupabaseStatusCard />
+      <p className="-mt-2 px-1 text-xs text-slate-400">
+        Switch modes with <code>NEXT_PUBLIC_DATA_MODE</code> (web) / <code>EXPO_PUBLIC_DATA_MODE</code> (mobile). See SUPABASE_SETUP.md.
+      </p>
     </div>
   );
 }

@@ -772,6 +772,26 @@ create table if not exists public.audit_logs (
 create index if not exists idx_audit_org on public.audit_logs(organization_id, created_at);
 
 -- =============================================================================
+-- Extra indexes on status / created_at for common filters & ordering
+-- =============================================================================
+create index if not exists idx_shifts_status on public.shifts(status);
+create index if not exists idx_shifts_created on public.shifts(created_at);
+create index if not exists idx_drafts_status on public.schedule_drafts(status);
+create index if not exists idx_timeoff_status on public.time_off_requests(status);
+create index if not exists idx_trades_status on public.shift_trade_requests(status);
+create index if not exists idx_maint_status on public.maintenance_issues(status);
+create index if not exists idx_maint_created on public.maintenance_issues(created_at);
+create index if not exists idx_clock_status on public.time_clock_entries(status);
+create index if not exists idx_clock_created on public.time_clock_entries(created_at);
+create index if not exists idx_chem_created on public.chemical_logs(created_at);
+create index if not exists idx_messages_created on public.messages(created_at);
+create index if not exists idx_notifications_read on public.notifications(read);
+create index if not exists idx_payroll_reviews_period on public.payroll_reviews(pay_period_id);
+create index if not exists idx_onboarding_staff on public.onboarding_submissions(staff_id);
+create index if not exists idx_quote_status on public.quote_requests(status);
+create index if not exists idx_org_subs_org on public.organization_subscriptions(organization_id);
+
+-- =============================================================================
 -- updated_at triggers (attach to every table that has the column)
 -- =============================================================================
 do $$

@@ -81,14 +81,29 @@ npm install
 npx expo start
 ```
 
-## Supabase setup
+## Supabase mode & data layer
+
+PoolOps Pro runs in two modes, chosen by `NEXT_PUBLIC_DATA_MODE`:
+
+- **`mock`** — bundled demo data, no backend needed.
+- **`supabase`** — the real path: Supabase Auth + Postgres (RLS) shared by web and mobile.
+
+How it works:
+
+- **Env loading** — `apps/web/next.config.mjs` loads a `.env.local` placed in the **repo root** (where yours lives) as well as `apps/web/.env.local`, so local dev and Vercel both work. Only the publishable/anon key reaches the browser; the service-role key is server-only and never bundled (verified: 0 occurrences in client output).
+- **Repository layer** — `apps/web/src/lib/repos/` exposes `repos.<domain>.<method>()` with a **mock impl and a Supabase impl** per domain (organizations, facilities, staff, chat, notifications, chemicals, maintenance, timeClock, timeOff, scheduling, quoteRequests, pricing, billing, …). Every call **falls back to demo data on any error** (missing table, network) and reports `{ data, source, error }`.
+- **Auth** — `apps/web/src/lib/auth.ts` wraps Supabase Auth (sign up / sign in / sign out). The login page does **real auth in supabase mode** and keeps the demo role switcher for instant exploration.
+- **Live hydration & write-through** — `SupabaseHydrator` pulls live rows into the store on load; chat posts, chemical logs, maintenance reports, and clock-ins **persist to Supabase** in supabase mode.
+- **Health** — Settings → **Supabase connection** (and the top-bar chip) show *Live sync / Schema needed / Setup needed / Offline / Local demo* via a real probe.
+
+**To go live (one-time):** in the Supabase SQL editor run, in order: `supabase/schema.sql` → `rls-policies.sql` → `realtime.sql` → `storage.sql` → `seed.sql`. Then reload — the chip flips to **Live sync** and quote requests, chat, chemicals, maintenance, and time-clock writes hit Postgres. Until the schema is applied the app stays fully usable on demo data and shows a "Schema needed" hint.
 
 Full guide: **[SUPABASE_SETUP.md](./SUPABASE_SETUP.md)**. In short:
 
-1. Copy `apps/web/.env.example` → `apps/web/.env.local`.
+1. Put `.env.local` in the **repo root** (or `apps/web/.env.local`).
 2. **Rotate** the exposed service role key and paste the new one (server-only).
-3. Run, in order: `supabase/schema.sql`, `rls-policies.sql`, `realtime.sql`, `storage.sql`, then optionally `seed.sql`.
-4. Set `NEXT_PUBLIC_DATA_MODE=supabase`. The top-bar chip shows **Live sync** when connected.
+3. Run the five SQL files above.
+4. Set `NEXT_PUBLIC_DATA_MODE=supabase`. The chip shows **Live sync** when connected.
 
 ## Stripe setup
 
@@ -179,11 +194,13 @@ EXPO_PUBLIC_DATA_MODE=supabase    # or: mock
 
 ## Known limitations
 
+- **Supabase schema must be applied** to your project for full Supabase mode. Until you run the five SQL files, the app runs on demo data and shows a "Schema needed" hint (DDL can't be applied remotely without the DB password).
+- **Auth email confirmation** is on by default in Supabase. For instant local testing, enable *Auto Confirm* in Supabase → Authentication → Providers → Email, or confirm via the emailed link.
+- **Role from membership:** a newly signed-up user defaults to **Org Admin** so a new pool can start setting up. Real role resolution from `organization_members` activates once you seed/link memberships.
 - Mobile is delivered as a polished **in-app phone preview** (`/m/*`) plus an Expo scaffold; the native build needs the screens ported to React Native.
-- `mock` mode is the primary demo path. `supabase` mode is fully scaffolded (schema, RLS, realtime, clients) but requires running the SQL and rotating the key.
-- Auth is a demo role switcher; Supabase Auth is wired (`@supabase/ssr`) but not the active login.
 - Stripe billing, CSV/payroll exports, file uploads, email/SMS, and under-18 labor rules are **placeholders** pending integration and legal review (see SECURITY.md).
 - Starter RLS policies must be reviewed and tested before production.
+- This environment blocks SSH (port 22) and `gh` isn't installed, so the GitHub push must be completed by you (see GitHub workflow).
 
 ## Security
 

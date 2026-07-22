@@ -6,6 +6,7 @@ import { ALL_NAV_ITEMS } from "@poolops/shared";
 import { useAccess, useHydrated } from "@/lib/access";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
+import { SupabaseHydrator } from "./supabase-hydrator";
 import { AccessRestricted } from "@/components/ui/permission-gate";
 import { BrandMark } from "@/components/brand";
 
@@ -43,6 +44,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">
+      <SupabaseHydrator />
       {/* Desktop sidebar */}
       <aside className="hidden w-64 shrink-0 lg:block">
         <Sidebar />

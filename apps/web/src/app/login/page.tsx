@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowRight, Monitor, Smartphone, Mail, Lock, Check } from "lucide-react";
+import { ArrowRight, Monitor, Smartphone, Mail, Lock, Check, Loader2, AlertCircle, Database } from "lucide-react";
 import { ROLE_LIST, getRole, type RoleSlug } from "@poolops/shared";
+import { getEffectiveDataMode } from "@poolops/supabase";
 import { useSession } from "@/lib/session";
+import { signIn, signUp } from "@/lib/auth";
 import { Logo } from "@/components/brand";
 import { RoleBadge } from "@/components/ui/badge";
 
@@ -18,13 +20,40 @@ const FEATURED: RoleSlug[] = ["org_admin", "lifeguard", "lifeguard_manager", "pa
 export default function LoginPage() {
   const router = useRouter();
   const loginAs = useSession((s) => s.loginAs);
-  const [email, setEmail] = useState("director@tideandtown.example");
-  const [password, setPassword] = useState("demo-password");
+  const setEmailSession = useSession((s) => s.setEmail);
+  const supabaseMode = getEffectiveDataMode() === "supabase";
+  const [email, setEmail] = useState(supabaseMode ? "" : "director@tideandtown.example");
+  const [password, setPassword] = useState(supabaseMode ? "" : "demo-password");
   const [showAll, setShowAll] = useState(false);
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [busy, setBusy] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authInfo, setAuthInfo] = useState<string | null>(null);
 
   const enter = (role: RoleSlug) => {
     loginAs(role);
     router.push(surfaceHref(role));
+  };
+
+  // Real Supabase auth (supabase mode). After auth, the user enters the workspace;
+  // their org/role resolves from Supabase once membership rows exist, else defaults
+  // to Org Admin so a new pool can start setting up immediately.
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null); setAuthInfo(null);
+    if (!supabaseMode) { enter("org_admin"); return; }
+    if (!email || !password) { setAuthError("Enter an email and password."); return; }
+    setBusy(true);
+    const res = mode === "signin" ? await signIn(email, password) : await signUp(email, password);
+    setBusy(false);
+    if (!res.ok) { setAuthError(res.error); return; }
+    if (res.needsConfirmation) {
+      setAuthInfo("Account created. Check your email to confirm, then sign in. (Tip: enable auto-confirm in Supabase Auth settings for instant local testing.)");
+      setMode("signin");
+      return;
+    }
+    setEmailSession(email);
+    enter("org_admin");
   };
 
   const others = ROLE_LIST.filter((r) => !FEATURED.includes(r.slug));
@@ -35,33 +64,62 @@ export default function LoginPage() {
       <div className="flex w-full flex-col justify-center px-6 py-10 lg:w-1/2 lg:px-16">
         <div className="mx-auto w-full max-w-md">
           <Link href="/"><Logo size="md" /></Link>
-          <h1 className="mt-10 text-2xl font-bold text-slate-900">Welcome back</h1>
-          <p className="mt-1.5 text-sm text-slate-500">Sign in to your aquatics operations workspace.</p>
+          <h1 className="mt-10 text-2xl font-bold text-slate-900">{mode === "signup" ? "Create your account" : "Welcome back"}</h1>
+          <p className="mt-1.5 text-sm text-slate-500">
+            {supabaseMode ? "Sign in with Supabase Auth to your aquatics workspace." : "Sign in to your aquatics operations workspace."}
+          </p>
 
-          <form
-            className="mt-8 space-y-4"
-            onSubmit={(e) => { e.preventDefault(); enter("org_admin"); }}
-          >
+          {supabaseMode && (
+            <div className="mt-4 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+              <Database className="h-3.5 w-3.5" /> Supabase mode — real authentication
+            </div>
+          )}
+
+          <form className="mt-6 space-y-4" onSubmit={handleAuth}>
             <div>
               <label className="label">Work email</label>
               <div className="relative">
                 <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input className="input pl-9" value={email} onChange={(e) => setEmail(e.target.value)} type="email" />
+                <input className="input pl-9" value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="you@yourpool.org" autoComplete="email" />
               </div>
             </div>
             <div>
               <label className="label">Password</label>
               <div className="relative">
                 <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input className="input pl-9" value={password} onChange={(e) => setPassword(e.target.value)} type="password" />
+                <input className="input pl-9" value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder={mode === "signup" ? "Choose a password (min 6 chars)" : "Your password"} autoComplete={mode === "signup" ? "new-password" : "current-password"} />
               </div>
             </div>
-            <button type="submit" className="btn-primary w-full py-2.5">
-              Sign in as Pool Director <ArrowRight className="h-4 w-4" />
+
+            {authError && (
+              <div className="flex items-start gap-2 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> {authError}
+              </div>
+            )}
+            {authInfo && (
+              <div className="flex items-start gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                <Check className="mt-0.5 h-4 w-4 shrink-0" /> {authInfo}
+              </div>
+            )}
+
+            <button type="submit" disabled={busy} className="btn-primary w-full py-2.5">
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {supabaseMode ? (mode === "signin" ? "Sign in" : "Create account") : "Sign in as Pool Director"}
+              {!busy && <ArrowRight className="h-4 w-4" />}
             </button>
-            <p className="text-center text-xs text-slate-400">
-              Demo mode · mock authentication. Supabase Auth is wired for production (see SUPABASE_SETUP.md).
-            </p>
+
+            {supabaseMode ? (
+              <p className="text-center text-xs text-slate-400">
+                {mode === "signin" ? "New organization?" : "Already have an account?"}{" "}
+                <button type="button" onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setAuthError(null); }} className="font-semibold text-brand-700 hover:text-brand-800">
+                  {mode === "signin" ? "Create an account" : "Sign in"}
+                </button>
+              </p>
+            ) : (
+              <p className="text-center text-xs text-slate-400">
+                Demo mode · mock authentication. Set NEXT_PUBLIC_DATA_MODE=supabase for real Supabase Auth.
+              </p>
+            )}
           </form>
 
           <div className="my-7 flex items-center gap-3">

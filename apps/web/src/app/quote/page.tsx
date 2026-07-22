@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, ArrowRight, Sparkles } from "lucide-react";
 import { recommendPlan, getPlan, SETUP_PACKAGES } from "@poolops/shared";
+import { repos } from "@/lib/repos";
 import { MarketingHeader, MarketingFooter } from "@/components/marketing/marketing-chrome";
 
 const ORG_TYPES = ["Community pool / HOA", "Swim club", "Summer camp", "School / university", "Municipality / district", "Private aquatics center"];
@@ -11,6 +12,7 @@ const MODULES = ["Scheduling", "Time clock", "Certifications", "Swim lessons", "
 
 export default function QuotePage() {
   const [submitted, setSubmitted] = useState(false);
+  const [saveNote, setSaveNote] = useState<string | null>(null);
   const [org, setOrg] = useState("");
   const [contact, setContact] = useState("");
   const [email, setEmail] = useState("");
@@ -28,9 +30,17 @@ export default function QuotePage() {
   const toggleModule = (m: string) =>
     setModules((prev) => (prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]));
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Demo: no network call. In supabase mode this would insert into quote_requests.
+    // Saves to Supabase (quote_requests) in supabase mode; mock no-op otherwise.
+    const res = await repos.quoteRequests.create({
+      organizationName: org, contactName: contact, email, orgType,
+      facilityCount: facilities, poolCount: pools, staffCount: staff,
+      recommendedPlan: tier, modules, message,
+    });
+    if (res.source === "supabase" && res.ok) setSaveNote("Saved to your Supabase database (quote_requests).");
+    else if (res.source === "supabase" && !res.ok) setSaveNote(`Saved locally — Supabase note: ${res.error}`);
+    else setSaveNote(null);
     setSubmitted(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -47,7 +57,7 @@ export default function QuotePage() {
               Thanks {contact || "there"}! Based on {facilities} facilities, {pools} pools, and {staff} staff, we'd recommend the
               <strong> {plan.name}</strong> plan. Our team will follow up at {email || "your email"} within one business day.
             </p>
-            <p className="mt-2 text-xs text-slate-400">Demo mode — no email was actually sent. In Supabase mode this inserts into <code>quote_requests</code>.</p>
+            <p className="mt-2 text-xs text-slate-400">{saveNote ?? "Demo mode — no email was sent. Set NEXT_PUBLIC_DATA_MODE=supabase to save to the quote_requests table."}</p>
             <div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
               <Link href="/login" className="btn-primary justify-center">Explore the demo <ArrowRight className="h-4 w-4" /></Link>
               <Link href="/pricing" className="btn-secondary justify-center">Back to pricing</Link>

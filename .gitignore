@@ -42,3 +42,6 @@ yarn-error.log*
 # prisma local db
 prisma/*.db
 prisma/*.db-journal
+
+# typescript build info
+*.tsbuildinfo
