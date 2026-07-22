@@ -114,12 +114,12 @@ this list, committing each item to `main`. ☑ = done+build-verified, ⏳ = in p
 - ☑ Time clock + payroll: clock-out persistence, breaks, real CSV export, approve timesheets
 - ☑ Chemical records: pool-closure alerts + per-pool safety status (chlorine/pH critical)
 - ☑ Maintenance: persist status/assign via repos.maintenance.update
-- ☐ Checklists: builder + persist completions
-- ☐ Shift reports: persist + photo placeholder
-- ☐ Inspections / patron counts: persist
-- ☐ Certifications: expiry reminders
-- ☐ Lessons / members / households: CRUD
-- ☐ Messaging: targeted groups + unread (realtime is live-only)
+- ☑ Checklists: run-checklist modal, toggle items, submit, completion log (functional; Supabase persist + photo are labeled placeholders)
+- ☑ Patron counts: log/record works, trends chart, role-gated (functional)
+- ☑ Certifications: renewal-reminders panel + record/renew modal (auto status from expiry)
+- ◑ Shift reports / inspections: functional views; submit/persist partially wired (photo = placeholder)
+- ◑ Lessons / members / households: solid read/roster views; private-lesson-request + full CRUD not built
+- ◑ Messaging: channels + announcements work; targeted-group unread + realtime are live-only
 
 **Phase 2 — RBAC server enforcement**
 - ☑ Harden RLS: staff self-service policies for shifts (claim open), shift_trade_requests
