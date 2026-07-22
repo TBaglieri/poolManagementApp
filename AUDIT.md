@@ -91,6 +91,42 @@ Verified by reading the code paths + running the existing test suite (**39 tests
 
 ---
 
+## 4b. Why account creation was broken (§4 diagnosis) + the fix
+
+Diagnosed while implementing the updated §4. Three defects, root-cause first:
+
+1. **No `profiles` row is created on sign-up (the root cause).** `public.profiles`
+   has `id → auth.users(id)`, and `organization_members.profile_id` /
+   `staff_profiles.profile_id` reference `profiles(id)`. But **nothing** created a
+   profile row when a user signed up — there was no `on auth.users` trigger and no
+   app insert. So `auth.signUp` created the `auth.users` row, then the very next
+   step (org setup's `insert organization_members(profile_id = uid)` or linking a
+   staff record) hit a **foreign-key violation**. Account creation half-succeeded
+   and then broke everything downstream (`current_org_id()` returned null → the user
+   saw an empty/broken app). **Fix:** `supabase/auth-profile-trigger.sql` installs
+   the standard `handle_new_user()` trigger (create the profile on signup, copy
+   name/role from invite metadata) + backfills existing users. Additive.
+
+2. **Invite acceptance only read the inviting browser's `localStorage`.** The accept
+   page looked the invite up in the client `useInvites` store, so a guard opening the
+   emailed link **on their own device** always got "Invitation not found." **Fix:** a
+   token-guarded server route `GET /api/invite/[token]` resolves the invite from the
+   DB (service role); the accept page uses it as a fallback, validates the invite
+   state (reused / revoked / expired) and password, handles duplicate-account and
+   network errors inline with the button loading state, and routes into `/dashboard`.
+
+3. **Privilege-escalation hole in `POST /api/admin/invite-user`.** The permission
+   check "fell through" and **allowed** the invite when the caller's
+   `organization_members` row couldn't be read. **Fix:** deny by default — an
+   unverifiable or insufficient role is now rejected (403).
+
+Validation rules (password policy, email, invite state, bulk parsing) are pure
+functions in `apps/web/src/lib/accounts.ts`, unit-tested, and shared by the UI and
+the routes. Live end-to-end auth couldn't be exercised from the build sandbox (no
+network egress to Supabase — `fetch failed`), so the flow is verified by unit tests +
+auth-denial + graceful UI states; run it against your Supabase project after applying
+`auth-profile-trigger.sql`.
+
 ## 5. Known pre-existing gaps (not introduced here, noted for honesty)
 
 - Authorization is UI-level in the app; RLS is the real boundary. This work does not change auth/RLS (per the "don't push destructive/auth changes while away" rule).

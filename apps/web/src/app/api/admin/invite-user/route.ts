@@ -36,19 +36,18 @@ export async function POST(req: Request) {
   const caller = userRes.user;
   if (!caller) return NextResponse.json({ ok: false, error: "Not authenticated" }, { status: 401 });
 
-  // 2) Best-effort permission check against organization_members (skipped gracefully if schema missing).
-  try {
-    const { data: member, error: memberErr } = await server
-      .from("organization_members").select("role_slug").eq("profile_id", caller.id).maybeSingle();
-    if (!memberErr && member && !ALLOWED_INVITER_ROLES.has((member as any).role_slug)) {
-      return NextResponse.json({ ok: false, error: "Your role cannot invite users." }, { status: 403 });
-    }
-    // 3) Hierarchy guard placeholder: lowest-level staff can never invite.
-    if (!memberErr && member && (member as any).role_slug === "lifeguard") {
-      return NextResponse.json({ ok: false, error: "Lifeguards cannot invite users." }, { status: 403 });
-    }
-  } catch {
-    /* schema not applied yet — fall through; RLS will enforce once installed */
+  // 2) Permission check against organization_members — DENY BY DEFAULT.
+  //    (Previously this fell through and allowed the invite when the caller's
+  //    membership couldn't be read — a privilege-escalation hole. Now an
+  //    unverifiable or insufficient role is rejected. See AUDIT.md.)
+  const { data: member, error: memberErr } = await server
+    .from("organization_members").select("role_slug").eq("profile_id", caller.id).maybeSingle();
+  if (memberErr) {
+    return NextResponse.json({ ok: false, error: "Could not verify your permissions. Try again." }, { status: 403 });
+  }
+  const callerRole = (member as any)?.role_slug as string | undefined;
+  if (!callerRole || !ALLOWED_INVITER_ROLES.has(callerRole)) {
+    return NextResponse.json({ ok: false, error: "Your role cannot invite users." }, { status: 403 });
   }
 
   // 4) Create the auth user / send invite via the admin API.
