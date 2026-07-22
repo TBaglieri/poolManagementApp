@@ -7,6 +7,7 @@ import {
 } from "@poolops/shared";
 import { useAccess } from "@/lib/access";
 import { useDemo } from "@/lib/store";
+import { downloadCSV } from "@/lib/csv";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { SectionCard } from "@/components/ui/section-card";
@@ -37,6 +38,33 @@ export default function TimeClockPage() {
   const clockedIn = clock.filter((e) => e.status === "clocked_in" || e.status === "late");
   const missed = clock.filter((e) => e.status === "missed_in" || e.status === "missed_out");
   const facMatch = (fid: string) => facilityId === "all" || fid === facilityId;
+
+  const entryHours = (e: TimeClockEntry) => {
+    if (!e.clockIn || !e.clockOut) return 0;
+    const ms = new Date(e.clockOut).getTime() - new Date(e.clockIn).getTime();
+    return Math.max(0, ms / 3_600_000 - (e.breakMinutes ?? 0) / 60);
+  };
+
+  const exportCSV = () => {
+    const rows = clock.filter((e) => facMatch(e.facilityId)).map((e) => ({
+      staff: staffName(e.staffId),
+      facility: facilityName(e.facilityId),
+      clockIn: e.clockIn ? new Date(e.clockIn).toLocaleString() : "",
+      clockOut: e.clockOut ? new Date(e.clockOut).toLocaleString() : "",
+      breakMinutes: e.breakMinutes ?? 0,
+      hours: entryHours(e).toFixed(2),
+      status: e.status.replace("_", " "),
+    }));
+    downloadCSV(`timesheet-${new Date().toISOString().slice(0, 10)}`, rows, [
+      { key: "staff", label: "Staff" },
+      { key: "facility", label: "Facility" },
+      { key: "clockIn", label: "Clock in" },
+      { key: "clockOut", label: "Clock out" },
+      { key: "breakMinutes", label: "Break (min)" },
+      { key: "hours", label: "Hours" },
+      { key: "status", label: "Status" },
+    ]);
+  };
 
   // Staff personal clock card
   const ClockCard = me && (
@@ -97,7 +125,7 @@ export default function TimeClockPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Time Clock" subtitle="Live attendance and timesheet monitoring."
-        actions={can("payroll.export") && <Button variant="secondary" icon="Download">Export CSV</Button>} />
+        actions={can("payroll.export") && <Button variant="secondary" icon="Download" onClick={exportCSV} disabled={clock.length === 0}>Export CSV</Button>} />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Clocked in now" value={clockedIn.length} icon="UserCheck" intent="success" />

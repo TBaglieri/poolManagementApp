@@ -80,6 +80,8 @@ interface DemoState {
   /** Staff claims an open shift for themselves. No-op if already assigned. */
   pickUpShift: (shiftId: ID, staffId: ID) => void;
   toggleClock: (staffId: ID, facilityId: ID) => void;
+  /** Add break minutes to the staff member's currently-active clock entry. */
+  addBreak: (staffId: ID, minutes: number) => void;
   addIssue: (issue: Omit<MaintenanceIssue, "id" | "reportedAt">) => void;
   setIssueStatus: (id: ID, status: IssueStatus) => void;
   assignIssue: (id: ID, staffId: ID) => void;
@@ -243,33 +245,38 @@ export const useDemo = create<DemoState>((set, get) => ({
   },
 
   toggleClock: (staffId, facilityId) => {
-    const wasClockedIn = get().clock.some(
+    const existing = get().clock.find(
       (e) => e.staffId === staffId && (e.status === "clocked_in" || e.status === "late"),
     );
-    set((s) => {
-      const existing = s.clock.find(
-        (e) => e.staffId === staffId && (e.status === "clocked_in" || e.status === "late"),
-      );
-      if (existing) {
-        return {
-          clock: s.clock.map((e) =>
-            e.id === existing.id ? { ...e, clockOut: new Date().toISOString(), status: "clocked_out" } : e,
-          ),
-        };
-      }
+    const nowIso = new Date().toISOString();
+    if (existing) {
+      // Clock out: close the active entry.
+      set((s) => ({
+        clock: s.clock.map((e) => (e.id === existing.id ? { ...e, clockOut: nowIso, status: "clocked_out" } : e)),
+      }));
+      if (activeMode() === "supabase") void repos.timeClock.update(existing.id, { clock_out: nowIso, status: "clocked_out" });
+    } else {
+      // Clock in: open a new entry.
       const entry: TimeClockEntry = {
-        id: uid("tc"), staffId, facilityId, clockIn: new Date().toISOString(),
+        id: uid("tc"), staffId, facilityId, clockIn: nowIso,
         clockOut: null, breakMinutes: 0, status: "clocked_in", flagged: false,
       };
-      return { clock: [entry, ...s.clock] };
-    });
-    // Persist a new clock-in to Supabase (clock-out updates are left to a future sync).
-    if (!wasClockedIn && activeMode() === "supabase") {
-      void repos.timeClock.create({
-        staff_id: staffId, facility_id: facilityId, clock_in: new Date().toISOString(),
+      set((s) => ({ clock: [entry, ...s.clock] }));
+      if (activeMode() === "supabase") void repos.timeClock.create({
+        staff_id: staffId, facility_id: facilityId, clock_in: nowIso,
         break_minutes: 0, status: "clocked_in", flagged: false,
       });
     }
+  },
+
+  addBreak: (staffId, minutes) => {
+    const existing = get().clock.find(
+      (e) => e.staffId === staffId && (e.status === "clocked_in" || e.status === "late"),
+    );
+    if (!existing) return;
+    const total = existing.breakMinutes + minutes;
+    set((s) => ({ clock: s.clock.map((e) => (e.id === existing.id ? { ...e, breakMinutes: total } : e)) }));
+    if (activeMode() === "supabase") void repos.timeClock.update(existing.id, { break_minutes: total });
   },
 
   addIssue: (issue) => {

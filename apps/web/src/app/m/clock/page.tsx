@@ -12,6 +12,7 @@ export default function MobileClock() {
   const { staff: me, facilityId } = useAccess();
   const clock = useDemo((s) => s.clock);
   const toggleClock = useDemo((s) => s.toggleClock);
+  const addBreak = useDemo((s) => s.addBreak);
   const [now, setNow] = useState(() => new Date());
 
   const homeFacility = me?.homeFacilityId ?? "fac_maplewood";
@@ -50,8 +51,12 @@ export default function MobileClock() {
         </button>
 
         {clockedIn && (
-          <button className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white py-3 text-sm font-medium text-slate-600">
-            <Coffee className="h-4 w-4" /> Start break
+          <button
+            onClick={() => me && addBreak(me.id, 15)}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white py-3 text-sm font-medium text-slate-600 active:bg-slate-50"
+          >
+            <Coffee className="h-4 w-4" />
+            {myActive?.breakMinutes ? `Break logged: ${myActive.breakMinutes} min · +15` : "Log 15-min break"}
           </button>
         )}
       </div>

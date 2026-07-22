@@ -8,6 +8,7 @@ import {
   type PayrollReview,
 } from "@poolops/shared";
 import { useAccess } from "@/lib/access";
+import { downloadCSV } from "@/lib/csv";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { SectionCard } from "@/components/ui/section-card";
@@ -22,18 +23,45 @@ import { payrollStatusMeta } from "@/lib/status";
 export default function PayrollPage() {
   const { can } = useAccess();
   const [periodId, setPeriodId] = useState(payPeriods[0].id);
+  const [reviews, setReviews] = useState<PayrollReview[]>(payrollReviews);
 
   if (!can("payroll.view")) {
     return <AccessRestricted message="Payroll is restricted to the payroll/payment team and admins. Lifeguards and operations staff can't access this page." />;
   }
 
-  const totalRegular = payrollReviews.reduce((s, r) => s + r.regularHours, 0);
-  const totalOt = payrollReviews.reduce((s, r) => s + r.overtimeHours, 0);
-  const estCost = payrollReviews.reduce((s, r) => {
-    const rate = getStaff(r.staffId)?.payRate ?? 17;
-    return s + r.regularHours * rate + r.overtimeHours * rate * 1.5;
-  }, 0);
-  const needsReview = payrollReviews.filter((r) => r.status === "needs_review").length;
+  const rateFor = (staffId: string) => getStaff(staffId)?.payRate ?? 17;
+  const grossFor = (r: PayrollReview) => r.regularHours * rateFor(r.staffId) + r.overtimeHours * rateFor(r.staffId) * 1.5;
+
+  const totalRegular = reviews.reduce((s, r) => s + r.regularHours, 0);
+  const totalOt = reviews.reduce((s, r) => s + r.overtimeHours, 0);
+  const estCost = reviews.reduce((s, r) => s + grossFor(r), 0);
+  const needsReview = reviews.filter((r) => r.status === "needs_review").length;
+  const readyToApprove = reviews.filter((r) => r.status === "ready" || r.status === "needs_review").length;
+
+  const approveAllReady = () =>
+    setReviews((rs) => rs.map((r) => (r.status === "ready" || r.status === "needs_review" ? { ...r, status: "approved" } : r)));
+
+  const exportPayroll = () => {
+    const rows = reviews.map((r) => ({
+      staff: staffName(r.staffId),
+      facility: facilityName(getStaff(r.staffId)?.homeFacilityId),
+      regularHours: r.regularHours,
+      overtimeHours: r.overtimeHours,
+      rate: rateFor(r.staffId),
+      estGross: grossFor(r).toFixed(2),
+      status: PAYROLL_STATUS_LABELS[r.status],
+    }));
+    const label = payPeriods.find((p) => p.id === periodId)?.label ?? "period";
+    downloadCSV(`payroll-${label.replace(/\s+/g, "-")}`, rows, [
+      { key: "staff", label: "Staff" },
+      { key: "facility", label: "Facility" },
+      { key: "regularHours", label: "Regular hours" },
+      { key: "overtimeHours", label: "Overtime hours" },
+      { key: "rate", label: "Pay rate" },
+      { key: "estGross", label: "Est. gross" },
+      { key: "status", label: "Status" },
+    ]);
+  };
 
   const columns: Column<PayrollReview>[] = [
     { key: "staff", header: "Staff", render: (r) => (
@@ -60,7 +88,7 @@ export default function PayrollPage() {
             <Select value={periodId} onChange={(e) => setPeriodId(e.target.value)} className="w-auto">
               {payPeriods.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
             </Select>
-            {can("payroll.export") && <Button icon="Download">Export payroll</Button>}
+            {can("payroll.export") && <Button icon="Download" onClick={exportPayroll}>Export payroll</Button>}
           </div>
         } />
 
@@ -77,8 +105,8 @@ export default function PayrollPage() {
       </div>
 
       <SectionCard title="Timesheet review" subtitle={`Pay period ${payPeriods.find((p) => p.id === periodId)?.label}`}
-        actions={can("payroll.manage") && <Button variant="secondary" size="sm" icon="Check">Approve all ready</Button>}>
-        <DataTable columns={columns} rows={payrollReviews} getKey={(r) => r.id} />
+        actions={can("payroll.manage") && <Button variant="secondary" size="sm" icon="Check" onClick={approveAllReady} disabled={readyToApprove === 0}>Approve all ready ({readyToApprove})</Button>}>
+        <DataTable columns={columns} rows={reviews} getKey={(r) => r.id} />
       </SectionCard>
 
       <SectionCard title="Recent exports" subtitle="Payroll export history" icon={<FileSpreadsheet className="h-4 w-4 text-slate-400" />}>

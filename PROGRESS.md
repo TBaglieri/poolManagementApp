@@ -104,6 +104,38 @@ uploads, payments, and email/SMS do not exist**.
 
 ---
 
+## Roadmap to production (autonomous run — 2026-07-13)
+User directive: finish everything, ready for App Store + full-time summer deployment. Working through
+this list, committing each item to `main`. ☑ = done+build-verified, ⏳ = in progress, ☐ = todo,
+🔒 = needs the user (Supabase project / Apple / Google / devices).
+
+**Phase 1 — Module completeness (web, mock-mode, build-verified)**
+- ☑ Staff scheduling: swaps/subs/pick-up/approvals
+- ☑ Time clock + payroll: clock-out persistence, breaks, real CSV export, approve timesheets
+- ☐ Chemical records: pool-closure alerts, edit, notifications
+- ☐ Maintenance: persist status/assign/resolve
+- ☐ Checklists: builder + persist completions
+- ☐ Shift reports: persist + photo placeholder
+- ☐ Inspections / patron counts: persist
+- ☐ Certifications: expiry reminders
+- ☐ Lessons / members / households: CRUD
+- ☐ Messaging: targeted groups + unread (realtime is live-only)
+
+**Phase 2 — RBAC server enforcement**
+- ☐ Harden RLS for all tables; permission-matrix tests
+
+**Phase 4 — QA & hardening**
+- ☐ Add Vitest; unit tests for RBAC, scheduling engine, chem flagging, pricing
+- ☐ Privilege-escalation tests; QA checklist per role
+
+**Phase 3 — Native mobile (Expo)** 🔒 (needs EAS + devices + stores to truly finish)
+- ☐ Navigation + real Supabase auth + port key screens
+- ☐ Push notifications (FCM/APNs) + deep links
+
+**Phase 5 — Release readiness**
+- ☐ Icons/splash config, versioning, store metadata drafts, privacy policy, release checklist
+- 🔒 Apple Developer Program, Google Play Console, signing, device testing, submission (you)
+
 ## Decisions needed (blocking build)
 See the audit summary in chat. Key forks: mobile strategy, Supabase-live vs mock-first,
 server-enforcement model (RLS vs API routes), and starting module priority.

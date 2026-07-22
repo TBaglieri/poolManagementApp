@@ -176,8 +176,10 @@ export const repos = {
   },
 
   timeClock: {
-    list: () => selectOr<any, TimeClockEntry>("time_clock_entries", seedClock, mapClock),
+    list: () => selectOr<any, TimeClockEntry>("time_clock_entries", seedClock, mapClock, (q) => q.order("clock_in", { ascending: false })),
     create: (payload: Record<string, unknown>) => insertOr<TimeClockEntry>("time_clock_entries", payload, mapClock),
+    /** Clock-out, break, flag, and manager adjustments all funnel through here. */
+    update: (id: string, patch: Record<string, unknown>) => updateOr<TimeClockEntry>("time_clock_entries", id, patch, mapClock),
   },
 
   timeOff: {
