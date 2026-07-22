@@ -173,6 +173,8 @@ export const repos = {
   maintenance: {
     list: () => selectOr<any, MaintenanceIssue>("maintenance_issues", seedIssues, mapMaintenance, (q) => q.order("created_at", { ascending: false })),
     create: (payload: Record<string, unknown>) => insertOr<MaintenanceIssue>("maintenance_issues", payload, mapMaintenance),
+    /** Change status, assign, set due date, etc. */
+    update: (id: string, patch: Record<string, unknown>) => updateOr<MaintenanceIssue>("maintenance_issues", id, patch, mapMaintenance),
   },
 
   timeClock: {

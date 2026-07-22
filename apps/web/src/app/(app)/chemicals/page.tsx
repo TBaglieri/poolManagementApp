@@ -20,6 +20,9 @@ import { MultiLine } from "@/components/charts/charts-lazy";
 
 const FIELD_LABEL: Record<string, string> = Object.fromEntries(CHEMICAL_FIELDS.map((f) => [f.key, f.short]));
 
+/** Parameters whose out-of-range values are a swimmer-safety issue → recommend closure. */
+const CRITICAL_KEYS = ["freeChlorine", "combinedChlorine", "ph"];
+
 export default function ChemicalsPage() {
   const { can, staff: me, facilityId } = useAccess();
   const chemicals = useDemo((s) => s.chemicals);
@@ -38,6 +41,15 @@ export default function ChemicalsPage() {
   const visible = chemicals.filter((c) => facMatch(c.facilityId));
   const todayLogs = visible.filter((c) => new Date(c.recordedAt).toDateString() === new Date().toDateString());
   const warnings = visible.filter((c) => c.outOfRange.length > 0);
+
+  // Pool-closure status: for each facility, look at its most recent reading. If a
+  // safety-critical parameter (chlorine / pH) is out of range, recommend closure.
+  const poolStatus = facilities.filter((f) => facMatch(f.id)).map((f) => {
+    const latest = visible.find((c) => c.facilityId === f.id); // newest first (store prepends)
+    const critical = latest ? latest.outOfRange.filter((k) => CRITICAL_KEYS.includes(k)) : [];
+    return { facility: f, latest, critical };
+  });
+  const closures = poolStatus.filter((p) => p.critical.length > 0);
 
   const chartData = useMemo(() => chemicals
     .filter((c) => c.facilityId === chartFacility)
@@ -71,6 +83,40 @@ export default function ChemicalsPage() {
         <StatCard label="Facilities monitored" value={facilities.length} icon="Building2" intent="info" />
         <StatCard label="Total logs" value={visible.length} icon="ListChecks" intent="neutral" />
       </div>
+
+      {closures.length > 0 && (
+        <AlertCard intent="danger" title={`⚠ Close ${closures.length} pool${closures.length > 1 ? "s" : ""} now — unsafe water chemistry`}>
+          {closures.map((c) => (
+            <p key={c.facility.id} className="mt-0.5">
+              <span className="font-semibold">{c.facility.name}</span> — {c.critical.map((k) => FIELD_LABEL[k] ?? k).join(", ")} out of safe range.
+              Close the pool, correct chemistry, and re-test before reopening.
+            </p>
+          ))}
+        </AlertCard>
+      )}
+
+      <SectionCard title="Pool safety status" subtitle="Based on each pool's most recent reading">
+        <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+          {poolStatus.map(({ facility, latest, critical }) => {
+            const closed = critical.length > 0;
+            const warn = !closed && (latest?.outOfRange.length ?? 0) > 0;
+            return (
+              <div key={facility.id} className={`rounded-xl border p-3 ${closed ? "border-rose-200 bg-rose-50" : warn ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-slate-800">{facility.name}</p>
+                  <Badge intent={closed ? "danger" : warn ? "warning" : "success"}>
+                    {closed ? "Close now" : warn ? "Monitor" : "Safe to open"}
+                  </Badge>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  {latest ? `Last reading ${formatDateTime(latest.recordedAt)}` : "No readings yet"}
+                  {closed && ` · ${critical.map((k) => FIELD_LABEL[k] ?? k).join(", ")}`}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </SectionCard>
 
       {warnings.length > 0 && (
         <AlertCard intent="danger" title={`${warnings.length} reading(s) out of range`}>

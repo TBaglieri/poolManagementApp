@@ -112,8 +112,8 @@ this list, committing each item to `main`. ☑ = done+build-verified, ⏳ = in p
 **Phase 1 — Module completeness (web, mock-mode, build-verified)**
 - ☑ Staff scheduling: swaps/subs/pick-up/approvals
 - ☑ Time clock + payroll: clock-out persistence, breaks, real CSV export, approve timesheets
-- ☐ Chemical records: pool-closure alerts, edit, notifications
-- ☐ Maintenance: persist status/assign/resolve
+- ☑ Chemical records: pool-closure alerts + per-pool safety status (chlorine/pH critical)
+- ☑ Maintenance: persist status/assign via repos.maintenance.update
 - ☐ Checklists: builder + persist completions
 - ☐ Shift reports: persist + photo placeholder
 - ☐ Inspections / patron counts: persist

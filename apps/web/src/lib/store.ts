@@ -292,11 +292,15 @@ export const useDemo = create<DemoState>((set, get) => ({
     }
   },
 
-  setIssueStatus: (id, status) =>
-    set((s) => ({ issues: s.issues.map((i) => (i.id === id ? { ...i, status } : i)) })),
+  setIssueStatus: (id, status) => {
+    set((s) => ({ issues: s.issues.map((i) => (i.id === id ? { ...i, status } : i)) }));
+    if (activeMode() === "supabase") void repos.maintenance.update(id, { status });
+  },
 
-  assignIssue: (id, staffId) =>
-    set((s) => ({ issues: s.issues.map((i) => (i.id === id ? { ...i, assignedTo: staffId } : i)) })),
+  assignIssue: (id, staffId) => {
+    set((s) => ({ issues: s.issues.map((i) => (i.id === id ? { ...i, assignedTo: staffId } : i)) }));
+    if (activeMode() === "supabase") void repos.maintenance.update(id, { assigned_to: staffId });
+  },
 
   addChemicalLog: (log) => {
     const values = {
