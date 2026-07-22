@@ -29,7 +29,9 @@ export function tenantMetadata(config: TenantConfig, ctx: TenantMetaContext): Me
   const name = config.displayName;
   const description = config.copy.tagline;
   const url = `${ctx.origin}/${ctx.slug}`;
-  const favicon = faviconDataUri(config);
+  // A tenant-supplied favicon file (e.g. Villas' houses tile) wins; otherwise a
+  // generated brand-color mark keeps every tenant's tab on-brand out of the box.
+  const favicon = config.branding.favicon ? absolute(ctx.origin, config.branding.favicon) : faviconDataUri(config);
 
   // Social card: a tenant-supplied image if set, else the per-tenant generated card.
   const ogImage = config.branding.ogImage ? absolute(ctx.origin, config.branding.ogImage) : `${ctx.origin}/api/og/${ctx.slug}`;

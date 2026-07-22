@@ -22,7 +22,10 @@ describe("inline brand icons", () => {
     expect((svg.match(/<path /g) ?? []).length).toBe(INLINE_ICONS.houses.paths.length);
   });
 
-  it("Villas uses the houses mark (white-label: tied to Villas' config)", () => {
-    expect(inlineIconId(getTenantConfig("villas").branding.icon)).toBe("houses");
+  it("Villas points its icon at its own raster cutout (white-label: per-tenant asset)", () => {
+    const icon = getTenantConfig("villas").branding.icon;
+    expect(icon).toBe("/branding/villas-icon.png");
+    // It's a real asset, not an inline mark.
+    expect(inlineIconId(icon)).toBeNull();
   });
 });

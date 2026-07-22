@@ -51,6 +51,9 @@ export const BrandingSchema = z.object({
    * crisp, theme-colored SVG at any size. Per-tenant — each tenant sets its own.
    */
   icon: z.string().optional(),
+  /** Dark-mode variant of `icon` (e.g. a light/white cutout) when the icon is a
+   *  fixed-color asset that wouldn't read on dark chrome. Optional. */
+  iconDark: z.string().optional(),
   /** Social preview image (~1200×630) for link unfurls; generated per-tenant if unset. */
   ogImage: z.string().optional(),
   /** apple-touch-icon; falls back to the icon/generated mark when unset. */

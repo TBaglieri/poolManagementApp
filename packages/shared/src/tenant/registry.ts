@@ -67,9 +67,19 @@ export const TENANT_INPUTS: Record<string, TenantConfigInput> = {
     address: "Dobbs Ferry, New York",
     timezone: "America/New_York",
     contact: { email: "board@villasontheridge.example", phone: "(914) 555-0139" },
-    // Houses line-art mark (inline SVG → crisp + theme-colored at any size).
-    // Drop a raster logo at branding.logoLight to override the wordmark image.
-    branding: { monogram: "VR", fontFamily: "Inter", icon: "inline:houses" },
+    // Real branded artwork (townhouse line art). Dark slate cutout for light
+    // surfaces + white cutout for dark mode; derived icon/favicon/OG assets keep
+    // the tab, home button and link-preview one brand. See apps/web/public/branding.
+    branding: {
+      monogram: "VR", fontFamily: "Inter",
+      icon: "/branding/villas-icon.png",
+      iconDark: "/branding/villas-icon-light.png",
+      logoLight: "/branding/villas-logo.png",
+      logoDark: "/branding/villas-logo-light.png",
+      favicon: "/branding/villas-favicon.png",
+      appleTouchIcon: "/branding/villas-touch.png",
+      ogImage: "/branding/villas-og.png",
+    },
     theme: HUDSON_THEME,
     copy: {
       tagline: "Your community pool, run smoothly.",

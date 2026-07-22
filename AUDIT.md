@@ -266,11 +266,23 @@ config**, never hardcoded globally. `BrandingSchema`
   provision + link the staff profile per §4e). A share link never grants access to
   another tenant.
 
-**Asset note:** the raster logo the task referenced (`apps/web/public/branding/villas-logo.png`)
-was **not present in the repo** (the `public/` tree was empty), so its cream background
-couldn't be cut out / traced. The authored inline `houses` SVG covers the icon, favicon
-and OG mark without it; drop the PNG in and set `branding.logoLight` to use the raster
-wordmark. No "Community Icon" placeholder text is shipped.
+**Villas artwork (real assets wired in).** The supplied townhouse line-art logo was
+processed (Pillow) into the derived assets the app needs, keeping the brand identical
+across tab, home button and link-preview:
+- Row-density analysis found three content bands — houses (icon), the "Villas on the
+  Ridge" wordmark, and a "**Community Icon**" placeholder line — and the placeholder
+  band was **cropped off** (never shipped).
+- Faint generator noise was removed (kept only dark, opaque line-art + its anti-aliased
+  edges), producing clean transparent cutouts: `villas-logo.png` (full lockup) and
+  `villas-icon.png` (houses only), each with a **white** dark-mode variant
+  (`*-light.png`) recolored from the same alpha so `TenantMark` theme-swaps for legibility.
+- Derived `villas-favicon.png` (64² white houses on the brand-teal tile),
+  `villas-touch.png` (180² apple-touch), and `villas-og.png` (1200×630 social card:
+  the dark lockup on a soft cream→cool-light background with a teal ridge bar).
+Villas' config points `icon`/`iconDark`/`logoLight`/`logoDark`/`favicon`/
+`appleTouchIcon`/`ogImage` at these files; other tenants fall back to the inline mark
+/ generated favicon / `/api/og/<slug>` card. Regeneration steps live in
+`apps/web/public/branding/README.md`.
 
 ## 5. Known pre-existing gaps (not introduced here, noted for honesty)
 

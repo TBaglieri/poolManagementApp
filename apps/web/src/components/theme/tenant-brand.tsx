@@ -47,11 +47,27 @@ export function TenantMark({ size = "md", className }: { size?: Size; className?
     );
   }
 
-  // Explicit icon asset URL, or a full logo image.
-  const src = (icon && !icon.startsWith("inline:") ? icon : undefined) ?? config.branding.logoLight;
-  if (src) {
+  // Explicit icon asset URL (e.g. the Villas houses cutout). Theme-swap to the
+  // light variant on dark chrome so a fixed-color line-art mark stays legible.
+  const iconUrl = icon && !icon.startsWith("inline:") ? icon : undefined;
+  if (iconUrl) {
+    const iconDark = config.branding.iconDark;
+    return (
+      <span className={cn("relative inline-flex shrink-0 items-center justify-center", s.box, className)}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={iconUrl} alt={`${config.displayName} logo`} className={cn("h-full w-full object-contain", iconDark && "dark:hidden")} />
+        {iconDark && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={iconDark} alt="" aria-hidden className="absolute inset-0 hidden h-full w-full object-contain dark:block" />
+        )}
+      </span>
+    );
+  }
+
+  // A full logo image with no dedicated icon.
+  if (config.branding.logoLight) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={src} alt={`${config.displayName} logo`} className={cn("object-contain", s.box, className)} />;
+    return <img src={config.branding.logoLight} alt={`${config.displayName} logo`} className={cn("object-contain", s.box, className)} />;
   }
 
   return (

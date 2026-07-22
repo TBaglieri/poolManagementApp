@@ -1,34 +1,38 @@
 # Tenant branding assets
 
-White-label rule: **a tenant's brand assets live in that tenant's config**, never
-hardcoded globally. Other tenants supply their own — nothing here is Villas-specific
-by default.
+White-label rule: **a tenant's brand assets live in that tenant's config**
+(`packages/shared/src/tenant/registry.ts` → `branding`), never hardcoded globally.
+Other tenants supply their own — nothing here is loaded unless a tenant points at it.
 
-## What resolves the brand mark
+## Villas on the Ridge assets
 
-`config.branding.icon` (see `packages/shared/src/tenant/schema.ts`) is the icon-only
-mark used by the home button, favicon, apple-touch icon, and social card. It accepts:
+Derived from the supplied townhouse line-art logo. The source lockup's "Community
+Icon" placeholder text was cropped off; a transparent cutout + an icon-only crop +
+white (dark-mode) variants were generated (see `scripts/`-style Pillow steps noted in
+AUDIT.md §4f).
 
-- `"inline:<id>"` — a built-in vector mark from `packages/shared/src/tenant/brand-icons.ts`
-  (e.g. `"inline:houses"`). Crisp at any size, inherits the theme color, transparent
-  by nature. **Villas uses `inline:houses`** — no raster file needed.
-- an asset URL (e.g. `"/branding/your-icon.svg"` or a PNG) for a tenant that ships art.
+| File | Purpose | Config field |
+|------|---------|--------------|
+| `villas-logo.png` | Full lockup (houses + wordmark), dark slate, transparent | `logoLight` |
+| `villas-logo-light.png` | White lockup for dark surfaces | `logoDark` |
+| `villas-icon.png` | Houses-only mark, dark slate, transparent | `icon` |
+| `villas-icon-light.png` | White houses-only mark (dark mode) | `iconDark` |
+| `villas-favicon.png` | 64×64 white houses on a brand-teal tile | `favicon` |
+| `villas-touch.png` | 180×180 apple-touch icon (same design) | `appleTouchIcon` |
+| `villas-og.png` | 1200×630 social preview card | `ogImage` |
 
-Other fields: `logoLight` / `logoDark` (full wordmark image), `ogImage` (static
-1200×630 social image — if unset, one is generated per-tenant at `/api/og/<slug>`),
-`appleTouchIcon`, `favicon`, `monogram` (fallback tile letters).
+## How the mark resolves
 
-## Villas' assets here
+`config.branding.icon` (see `schema.ts`) is the icon-only mark used by the home
+button. It accepts a raster/vector URL (Villas → `villas-icon.png`, theme-swapped to
+`iconDark` on dark chrome) OR an `"inline:<id>"` reference to a built-in vector mark
+in `packages/shared/src/tenant/brand-icons.ts` (crisp + theme-colored, no files
+needed) for a tenant that has none of its own. `favicon`/`appleTouchIcon`/`ogImage`
+fall back to a generated brand-color mark / the `/api/og/<slug>` card when unset, so
+every tenant is on-brand out of the box.
 
-- `villas-houses.svg` — the houses line-art mark as a standalone SVG (transparent,
-  `currentColor`). Referenced implicitly via `inline:houses`; also usable directly as
-  `branding.icon: "/branding/villas-houses.svg"` if you prefer the file over inline.
+## Regenerating Villas' derived assets
 
-## Dropping in the real raster logo
-
-If you have the original raster artwork (`villas-logo.png`): to use the **full
-wordmark** in the app, add a transparent-background cutout as `villas-logo-transparent.png`
-here and set Villas' `branding.logoLight` to `/branding/villas-logo-transparent.png`.
-For a raster **icon**, crop to just the houses (no wordmark, transparent) and point
-`branding.icon` at it. The inline SVG mark already covers the icon/favicon/OG cases,
-so raster files are optional.
+If the source logo changes, re-run the Pillow derivation (bands: houses / wordmark /
+drop the "Community Icon" line) documented in AUDIT.md §4f to refresh the cutouts,
+white variants, favicon tile and OG card.
