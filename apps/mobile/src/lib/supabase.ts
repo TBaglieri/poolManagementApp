@@ -2,8 +2,7 @@
  * Mobile Supabase client + data-mode detection.
  *
  * Uses the PUBLIC anon key from EXPO_PUBLIC_* env. Never embed the service role
- * key in the mobile bundle. Mirrors packages/supabase/src/mobile.ts so the
- * native app and the shared package stay in sync.
+ * key in the mobile bundle. Session persists via AsyncStorage.
  */
 import "react-native-url-polyfill/auto";
 import AsyncStorage from "@react-native-async-storage/async-storage";

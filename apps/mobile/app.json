@@ -7,17 +7,33 @@
     "scheme": "poolops",
     "userInterfaceStyle": "light",
     "splash": {
-      "backgroundColor": "#0E7490"
+      "backgroundColor": "#0E7490",
+      "resizeMode": "contain"
     },
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "pro.poolops.app"
     },
     "android": {
-      "package": "pro.poolops.app"
+      "package": "pro.poolops.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0E7490"
+      }
     },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "color": "#0891B2"
+        }
+      ]
+    ],
     "extra": {
-      "note": "Public EXPO_PUBLIC_* env vars are read at runtime. Never embed secrets."
+      "note": "Public EXPO_PUBLIC_* env vars are read at runtime. Never embed secrets.",
+      "eas": {
+        "projectId": "SET_VIA_EAS_INIT"
+      }
     }
   }
 }

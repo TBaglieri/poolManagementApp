@@ -139,8 +139,11 @@ this list, committing each item to `main`. ☑ = done+build-verified, ⏳ = in p
 - ☐ QA checklist per role
 
 **Phase 3 — Native mobile (Expo)** 🔒 (needs EAS + devices + stores to truly finish)
-- ☐ Navigation + real Supabase auth + port key screens
-- ☐ Push notifications (FCM/APNs) + deep links
+- ☑ Real Expo app: Supabase auth, bottom-tab nav (Home/Schedule/Clock/Chat/Profile),
+  Report-Issue screen, all wired to Supabase via src/api.ts. **Verified: tsc clean +
+  `expo export` bundles (950 modules).** Not device/EAS-tested. See NATIVE.md.
+- ☑ Push-notification client scaffolding (token, Android channel, tap→deep-link)
+- ◑ Port remaining screens (checklists, chemicals, classes, full my-schedule); push server side (Edge Function)
 
 **Phase 5 — Release readiness**
 - ☑ RELEASE.md: web (Vercel) + native tracks, secrets, icons/splash, versioning, store
