@@ -127,6 +127,29 @@ network egress to Supabase — `fetch failed`), so the flow is verified by unit 
 auth-denial + graceful UI states; run it against your Supabase project after applying
 `auth-profile-trigger.sql`.
 
+## 4c. Standing up Villas on Vercel (path-based, no domain) — what changed
+
+Changes made to existing tenant/auth code so `https://<app>.vercel.app/villas` works:
+
+- **Tenant resolution** was extracted into a pure `resolveTenant()`
+  (`packages/shared/src/tenant/resolution.ts`) and the middleware rewritten to use
+  it. Host (subdomain/custom domain) stays PRIMARY; the **first URL path segment**
+  is a new FALLBACK. On a path match the middleware **rewrites** `/<slug>/…` → `/…`
+  and persists the tenant in the `tenant` cookie, so internal links (which are
+  root-relative) keep working and moving to a subdomain later needs no app changes.
+  A no-tenant result rewrites to a neutral `/unknown-facility` page. The gated demo
+  is never resolvable by path/query without its access cookie.
+- **Villas config** (`registry.ts`): two active roles (`org_admin` "Admin / Pool
+  Manager", `lifeguard`) and a small-pool module set — chemicals, scheduling, chat,
+  time clock, maintenance, checklists, staff/onboarding/certs, shift reports,
+  documents, payroll, reports ON; lessons, members, reservations, guest passes,
+  community, billing, inspections, patron counts OFF (all still toggleable).
+- No changes to the auth/session mechanics themselves beyond the earlier §4 fixes
+  (profiles trigger, invite lookup, priv-esc). The provisioning scripts
+  (`seed-villas`, `create-admin`) use the service role from env and were verified
+  live end-to-end (org upsert; admin user → profile → org membership → staff row;
+  idempotent re-provision; cleaned up).
+
 ## 5. Known pre-existing gaps (not introduced here, noted for honesty)
 
 - Authorization is UI-level in the app; RLS is the real boundary. This work does not change auth/RLS (per the "don't push destructive/auth changes while away" rule).
