@@ -212,7 +212,7 @@ export default function PricingPage() {
           <p className="mx-auto mt-3 max-w-xl text-white/85">Municipalities, districts, and multi-site operators — tell us about your facilities and we'll build a plan.</p>
           <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link href="/quote" className="btn bg-white px-6 py-3 text-base font-semibold text-brand-700 hover:bg-brand-50">Request a quote <ArrowRight className="h-4 w-4" /></Link>
-            <Link href="/login" className="btn border border-white/40 px-6 py-3 text-base font-semibold text-white hover:bg-white/10">Explore the demo</Link>
+            <Link href="/login" className="btn border border-white/40 px-6 py-3 text-base font-semibold text-white hover:bg-white/10">Sign in</Link>
           </div>
         </div>
       </section>

@@ -10,7 +10,7 @@ export function MarketingHeader() {
           <Link href="/#features" className="hover:text-slate-900">Features</Link>
           <Link href="/#platforms" className="hover:text-slate-900">Web &amp; Mobile</Link>
           <Link href="/pricing" className="hover:text-slate-900">Pricing</Link>
-          <Link href="/login" className="hover:text-slate-900">Live demo</Link>
+          <Link href="/quote" className="hover:text-slate-900">Contact sales</Link>
         </nav>
         <div className="flex items-center gap-2">
           <Link href="/login" className="btn-ghost hidden sm:inline-flex">Sign in</Link>
@@ -25,7 +25,7 @@ export function MarketingFooter() {
   const cols: { title: string; links: { label: string; href: string }[] }[] = [
     { title: "Product", links: [
       { label: "Features", href: "/#features" }, { label: "Pricing", href: "/pricing" },
-      { label: "Request a quote", href: "/quote" }, { label: "Live demo", href: "/login" },
+      { label: "Request a quote", href: "/quote" }, { label: "Sign in", href: "/login" },
     ]},
     { title: "Operations", links: [
       { label: "Scheduling", href: "/login" }, { label: "Chemical logs", href: "/login" },

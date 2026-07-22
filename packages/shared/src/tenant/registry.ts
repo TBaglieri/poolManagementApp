@@ -18,6 +18,25 @@ export const TENANT_INPUTS: Record<string, TenantConfigInput> = {
   // Platform default / base look (the app's original cyan/navy).
   default: { slug: "default", displayName: "PoolOps Pro", theme: ORIGINAL_LOOK },
 
+  // The standalone, access-gated DEMO tenant (never public — reached only via a
+  // secret token link; see middleware + ONBOARDING.md). Full roles + modules on so
+  // a prospect can explore everything; the role switcher is available ONLY here.
+  demo: {
+    slug: "demo",
+    displayName: "PoolOps Demo",
+    productName: "PoolOps Pro",
+    organizationType: "community_pool",
+    theme: ORIGINAL_LOOK,
+    branding: { monogram: "PD" },
+    copy: {
+      tagline: "A guided walkthrough of PoolOps Pro with realistic sample data.",
+      welcome: "Welcome to the PoolOps Pro demo. Switch roles anytime from the top bar.",
+      rules: "This is sample data for demonstration only.",
+      emailFooter: "PoolOps Pro demo.",
+      notificationSender: "PoolOps Pro Demo",
+    },
+  },
+
   // The existing bundled demo organization, on the default look.
   tidetown: {
     slug: "tidetown",
@@ -92,8 +111,16 @@ export function getTenantConfig(slug?: string | null): TenantConfig {
 
 export const KNOWN_TENANT_SLUGS = Object.keys(TENANT_INPUTS);
 
+/** The gated demo tenant slug — never resolvable without a valid access token. */
+export const DEMO_TENANT_SLUG = "demo";
+
 export function isKnownTenant(slug?: string | null): boolean {
   return !!slug && slug.toLowerCase() in TENANT_INPUTS;
+}
+
+/** True for the standalone demo tenant (drives demo-only UI affordances). */
+export function isDemoTenant(config: { slug: string }): boolean {
+  return config.slug === DEMO_TENANT_SLUG;
 }
 
 export function listTenants(): TenantConfig[] {

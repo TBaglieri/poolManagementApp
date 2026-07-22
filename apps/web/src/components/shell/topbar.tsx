@@ -2,9 +2,10 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { Menu, Search, FlaskConical, LogOut } from "lucide-react";
-import { ALL_NAV_ITEMS } from "@poolops/shared";
+import { ALL_NAV_ITEMS, isDemoTenant } from "@poolops/shared";
 import { useAccess } from "@/lib/access";
 import { useSession } from "@/lib/session";
+import { useTenantConfig } from "@/lib/tenant/provider";
 import { FacilitySwitcher } from "./facility-switcher";
 import { RoleSwitcher } from "./role-switcher";
 import { NotificationsBell } from "./notifications";
@@ -31,7 +32,8 @@ function pageTitle(pathname: string): string {
 export function Topbar({ onOpenSidebar }: { onOpenSidebar: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { isDemo } = useAccess();
+  const config = useTenantConfig();
+  const demoTenant = isDemoTenant(config);
   const exitDemo = useSession((s) => s.exitDemo);
 
   return (
@@ -51,15 +53,15 @@ export function Topbar({ onOpenSidebar }: { onOpenSidebar: () => void }) {
       </div>
 
       <div className="ml-auto flex items-center gap-2">
-        {isDemo && (
+        {demoTenant && (
           <div className="flex items-center gap-1.5">
             <span className="hidden items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-amber-700 ring-1 ring-inset ring-amber-600/30 sm:inline-flex">
-              <FlaskConical className="h-3.5 w-3.5" /> Demo Mode
+              <FlaskConical className="h-3.5 w-3.5" /> Demo
             </span>
             <button
-              onClick={() => { exitDemo(); router.push("/login"); }}
+              onClick={() => { exitDemo(); window.location.href = "/leave-demo"; }}
               className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-50"
-              title="Leave demo and create your real organization"
+              title="Leave the demo"
             >
               <LogOut className="h-3.5 w-3.5" /> Exit Demo
             </button>
@@ -70,7 +72,7 @@ export function Topbar({ onOpenSidebar }: { onOpenSidebar: () => void }) {
         <FacilitySwitcher />
         <QuickActions />
         <NotificationsBell />
-        {isDemo && <RoleSwitcher />}
+        {demoTenant && <RoleSwitcher />}
       </div>
     </header>
   );

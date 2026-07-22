@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Rocket, X } from "lucide-react";
-import { ALL_NAV_ITEMS, isModuleEnabled, moduleForPath } from "@poolops/shared";
+import { ALL_NAV_ITEMS, isModuleEnabled, moduleForPath, isDemoTenant } from "@poolops/shared";
 import { useAccess, useHydrated } from "@/lib/access";
 import { useSession } from "@/lib/session";
 import { useTenantConfig } from "@/lib/tenant/provider";
@@ -19,7 +19,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const hydrated = useHydrated();
-  const { role, canAny, isDemo } = useAccess();
+  const { role, canAny } = useAccess();
   const config = useTenantConfig();
   const mode = useSession((s) => s.mode);
   const hasOrganization = useSession((s) => s.hasOrganization);
@@ -69,13 +69,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <RouteProgress />
         <Topbar onOpenSidebar={() => setMobileOpen(true)} />
 
-        {isDemo && bannerOpen && (
+        {isDemoTenant(config) && bannerOpen && (
           <div className="flex items-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm sm:px-6">
             <Rocket className="h-4 w-4 shrink-0 text-amber-600" />
             <p className="min-w-0 flex-1 truncate text-amber-800">
-              <span className="font-semibold">You're exploring the demo.</span> Changes use sample data and may reset.
+              <span className="font-semibold">You're exploring the demo.</span> Sample data only — switch roles from the top bar.
             </p>
-            <Link href="/pricing" className="hidden shrink-0 rounded-lg bg-amber-600 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-700 sm:inline-block">Create Your Real Organization</Link>
             <button onClick={() => setBannerOpen(false)} className="shrink-0 rounded p-1 text-amber-500 hover:bg-amber-100" aria-label="Dismiss"><X className="h-4 w-4" /></button>
           </div>
         )}

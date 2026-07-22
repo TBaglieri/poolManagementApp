@@ -4,9 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, Monitor, Smartphone, Mail, Lock, Check, Loader2, AlertCircle, Database } from "lucide-react";
-import { ROLE_LIST, getRole, type RoleSlug } from "@poolops/shared";
+import { ROLE_LIST, getRole, isDemoTenant, type RoleSlug } from "@poolops/shared";
 import { getEffectiveDataMode } from "@poolops/supabase";
 import { useSession } from "@/lib/session";
+import { useTenantConfig } from "@/lib/tenant/provider";
 import { signIn, signUp } from "@/lib/auth";
 import { Logo } from "@/components/brand";
 import { RoleBadge } from "@/components/ui/badge";
@@ -21,6 +22,8 @@ export default function LoginPage() {
   const router = useRouter();
   const enterDemo = useSession((s) => s.enterDemo);
   const loginReal = useSession((s) => s.loginReal);
+  const config = useTenantConfig();
+  const isDemo = isDemoTenant(config);
   const supabaseMode = getEffectiveDataMode() === "supabase";
   const [email, setEmail] = useState(supabaseMode ? "" : "director@tideandtown.example");
   const [password, setPassword] = useState(supabaseMode ? "" : "demo-password");
@@ -112,53 +115,53 @@ export default function LoginPage() {
               {!busy && <ArrowRight className="h-4 w-4" />}
             </button>
 
-            {supabaseMode ? (
-              <p className="text-center text-xs text-slate-400">
-                {mode === "signin" ? "New organization?" : "Already have an account?"}{" "}
-                <button type="button" onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setAuthError(null); }} className="font-semibold text-brand-700 hover:text-brand-800">
-                  {mode === "signin" ? "Create an account" : "Sign in"}
-                </button>
-              </p>
-            ) : (
-              <p className="text-center text-xs text-slate-400">
-                Demo mode · mock authentication. Set NEXT_PUBLIC_DATA_MODE=supabase for real Supabase Auth.
-              </p>
-            )}
+            {/* No public self-service sign-up: accounts are provisioned by an admin
+                (email invite). The demo tenant uses the role switcher below. */}
+            <p className="text-center text-xs text-slate-400">
+              {isDemo
+                ? "Or continue as a demo role below."
+                : "Accounts are provisioned by your administrator. Contact them if you need access."}
+            </p>
           </form>
 
-          <div className="my-7 flex items-center gap-3">
-            <span className="h-px flex-1 bg-slate-200" />
-            <span className="text-xs font-medium uppercase tracking-wide text-slate-400">or continue as a demo role</span>
-            <span className="h-px flex-1 bg-slate-200" />
-          </div>
+          {/* Demo role switcher — ONLY on the gated demo tenant, never in public UI. */}
+          {isDemo && (
+            <>
+              <div className="my-7 flex items-center gap-3">
+                <span className="h-px flex-1 bg-slate-200" />
+                <span className="text-xs font-medium uppercase tracking-wide text-slate-400">or continue as a demo role</span>
+                <span className="h-px flex-1 bg-slate-200" />
+              </div>
 
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-            {FEATURED.map((slug) => {
-              const r = getRole(slug);
-              return (
-                <button key={slug} onClick={() => enter(slug)}
-                  className="group flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-left transition-all hover:border-brand-300 hover:bg-brand-50/40 hover:shadow-card">
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold text-slate-800">{r.shortName}</span>
-                    <span className="block truncate text-xs text-slate-400">{r.surface === "mobile" ? "Mobile-first" : r.surface === "both" ? "Web + mobile" : "Web"}</span>
-                  </span>
-                  {r.surface === "mobile" ? <Smartphone className="h-4 w-4 shrink-0 text-slate-400 group-hover:text-brand-600" /> : <Monitor className="h-4 w-4 shrink-0 text-slate-400 group-hover:text-brand-600" />}
-                </button>
-              );
-            })}
-          </div>
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                {FEATURED.map((slug) => {
+                  const r = getRole(slug);
+                  return (
+                    <button key={slug} onClick={() => enter(slug)}
+                      className="group flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-left transition-all hover:border-brand-300 hover:bg-brand-50/40 hover:shadow-card">
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-semibold text-slate-800">{r.shortName}</span>
+                        <span className="block truncate text-xs text-slate-400">{r.surface === "mobile" ? "Mobile-first" : r.surface === "both" ? "Web + mobile" : "Web"}</span>
+                      </span>
+                      {r.surface === "mobile" ? <Smartphone className="h-4 w-4 shrink-0 text-slate-400 group-hover:text-brand-600" /> : <Monitor className="h-4 w-4 shrink-0 text-slate-400 group-hover:text-brand-600" />}
+                    </button>
+                  );
+                })}
+              </div>
 
-          <button onClick={() => setShowAll((v) => !v)} className="mt-3 text-sm font-medium text-brand-700 hover:text-brand-800">
-            {showAll ? "Hide" : "Show all 12 roles"}
-          </button>
-          {showAll && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {others.map((r) => (
-                <button key={r.slug} onClick={() => enter(r.slug)} className="transition-transform hover:scale-105">
-                  <RoleBadge role={r.slug} />
-                </button>
-              ))}
-            </div>
+              <button onClick={() => setShowAll((v) => !v)} className="mt-3 text-sm font-medium text-brand-700 hover:text-brand-800">
+                {showAll ? "Hide" : "Show all 12 roles"}
+              </button>
+              {showAll && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {others.map((r) => (
+                    <button key={r.slug} onClick={() => enter(r.slug)} className="transition-transform hover:scale-105">
+                      <RoleBadge role={r.slug} />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

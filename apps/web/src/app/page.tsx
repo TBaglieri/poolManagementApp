@@ -57,11 +57,11 @@ export default function LandingPage() {
             </p>
             <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Link href="/login" className="btn-primary btn px-6 py-3 text-base">
-                Launch live demo <ArrowRight className="h-4 w-4" />
+                Sign in <ArrowRight className="h-4 w-4" />
               </Link>
               <Link href="/pricing" className="btn-secondary btn px-6 py-3 text-base">View pricing &amp; plans</Link>
             </div>
-            <p className="mt-4 text-xs text-slate-400">No credit card required · Explore all 12 roles in demo mode</p>
+            <p className="mt-4 text-xs text-slate-400">Configurable roles &amp; modules · Accounts are provisioned by your administrator</p>
           </div>
 
           {/* Stat band */}
@@ -69,7 +69,7 @@ export default function LandingPage() {
             {[
               { v: "24+", l: "Operations modules" },
               { v: "12", l: "Staff access levels" },
-              { v: "4", l: "Facilities in demo" },
+              { v: "Per-tenant", l: "Branding & modules" },
               { v: "Web + iOS/Android", l: "Shared backend" },
             ].map((s) => (
               <div key={s.l} className="card p-5 text-center">
@@ -164,13 +164,13 @@ export default function LandingPage() {
       {/* CTA */}
       <section className="mx-auto max-w-7xl px-4 pb-24 sm:px-6 lg:px-8">
         <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-brand-600 to-cyan-600 px-8 py-14 text-center shadow-lift sm:px-16">
-          <h2 className="text-3xl font-bold tracking-tight text-white">Ready to dive in?</h2>
+          <h2 className="text-3xl font-bold tracking-tight text-white">Ready to run your pool like a pro?</h2>
           <p className="mx-auto mt-3 max-w-xl text-white/85">
-            Explore the full platform in demo mode — pick any role and see PoolOps Pro from their seat.
+            Talk to us about a branded workspace for your facility — we'll provision your admin account and you're live.
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Link href="/login" className="btn bg-white px-6 py-3 text-base font-semibold text-brand-700 hover:bg-brand-50">
-              Start the demo <ArrowRight className="h-4 w-4" />
+            <Link href="/quote" className="btn bg-white px-6 py-3 text-base font-semibold text-brand-700 hover:bg-brand-50">
+              Contact sales <ArrowRight className="h-4 w-4" />
             </Link>
             <Link href="/pricing" className="btn border border-white/40 px-6 py-3 text-base font-semibold text-white hover:bg-white/10">
               Compare plans
