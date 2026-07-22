@@ -12,5 +12,8 @@
     "./rbac": "./src/rbac/index.ts",
     "./utils": "./src/utils/index.ts"
   },
-  "sideEffects": false
+  "sideEffects": false,
+  "dependencies": {
+    "zod": "^3.23.8"
+  }
 }
