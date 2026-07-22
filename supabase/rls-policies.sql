@@ -103,7 +103,9 @@ begin
       and tb.table_type = 'BASE TABLE'
       and c.table_name not in ('time_off_requests','time_clock_entries','onboarding_submissions',
                                'maintenance_issues','messages','notifications','staff_certifications',
-                               'payroll_reviews','payroll_exports','pay_periods','documents','audit_logs')
+                               'payroll_reviews','payroll_exports','pay_periods','documents','audit_logs',
+                               -- self-service tables front-line staff must write to (explicit policies below):
+                               'shifts','shift_trade_requests','checklist_completions','patron_counts','shift_reports')
   loop
     execute format('drop policy if exists org_select on public.%I;', t);
     execute format(
@@ -310,5 +312,105 @@ create policy quote_insert on public.quote_requests for insert with check (true)
 drop policy if exists quote_read on public.quote_requests;
 create policy quote_read on public.quote_requests for select
   using (public.has_role('super_admin','org_admin'));
+
+-- -----------------------------------------------------------------------------
+-- SCHEDULING & OPERATIONS SELF-SERVICE  (hardening added 2026-07-13)
+-- The generic manager-only write policy is too strict for tables front-line staff
+-- must write to: claim an open shift, request a swap, complete a checklist, log a
+-- patron count, submit a shift report. These tables are excluded from the generic
+-- loop above and get explicit self-service + manager policies here. Two draft/
+-- template tables have no organization_id and are scoped through their parent.
+-- -----------------------------------------------------------------------------
+
+-- shifts: whole org can view; managers manage; a staff member may CLAIM an OPEN shift for themselves.
+drop policy if exists shifts_select on public.shifts;
+create policy shifts_select on public.shifts for select
+  using (organization_id = public.current_org_id());
+drop policy if exists shifts_manage on public.shifts;
+create policy shifts_manage on public.shifts for all
+  using (organization_id = public.current_org_id()
+         and public.has_role('super_admin','org_admin','ops_manager','lifeguard_manager','scheduling_manager'))
+  with check (organization_id = public.current_org_id());
+drop policy if exists shifts_claim_open on public.shifts;
+create policy shifts_claim_open on public.shifts for update
+  using (organization_id = public.current_org_id() and status = 'open')
+  with check (organization_id = public.current_org_id() and assigned_staff_id = public.current_staff_id());
+
+-- shift_trade_requests: staff see & insert their OWN; the named sub sees theirs; managers see all & approve.
+drop policy if exists trades_select on public.shift_trade_requests;
+create policy trades_select on public.shift_trade_requests for select
+  using (organization_id = public.current_org_id()
+         and (requested_by = public.current_staff_id()
+              or requested_to = public.current_staff_id()
+              or public.has_role('super_admin','org_admin','ops_manager','lifeguard_manager','scheduling_manager')));
+drop policy if exists trades_insert on public.shift_trade_requests;
+create policy trades_insert on public.shift_trade_requests for insert
+  with check (organization_id = public.current_org_id() and requested_by = public.current_staff_id());
+drop policy if exists trades_manage on public.shift_trade_requests;
+create policy trades_manage on public.shift_trade_requests for update
+  using (organization_id = public.current_org_id()
+         and public.has_role('super_admin','org_admin','ops_manager','lifeguard_manager','scheduling_manager'));
+
+-- schedule_draft_shifts: no organization_id — scope through the parent draft.
+drop policy if exists draft_shifts_select on public.schedule_draft_shifts;
+create policy draft_shifts_select on public.schedule_draft_shifts for select
+  using (exists (select 1 from public.schedule_drafts d
+                 where d.id = draft_id and d.organization_id = public.current_org_id()));
+drop policy if exists draft_shifts_manage on public.schedule_draft_shifts;
+create policy draft_shifts_manage on public.schedule_draft_shifts for all
+  using (exists (select 1 from public.schedule_drafts d
+                 where d.id = draft_id and d.organization_id = public.current_org_id()
+                   and public.has_role('super_admin','org_admin','ops_manager','lifeguard_manager','scheduling_manager')))
+  with check (exists (select 1 from public.schedule_drafts d
+                 where d.id = draft_id and d.organization_id = public.current_org_id()));
+
+-- schedule_template_requirements: no organization_id — scope through the parent template.
+drop policy if exists tmpl_req_select on public.schedule_template_requirements;
+create policy tmpl_req_select on public.schedule_template_requirements for select
+  using (exists (select 1 from public.schedule_templates t
+                 where t.id = template_id and t.organization_id = public.current_org_id()));
+drop policy if exists tmpl_req_manage on public.schedule_template_requirements;
+create policy tmpl_req_manage on public.schedule_template_requirements for all
+  using (exists (select 1 from public.schedule_templates t
+                 where t.id = template_id and t.organization_id = public.current_org_id()
+                   and public.has_role('super_admin','org_admin','ops_manager','lifeguard_manager','scheduling_manager')))
+  with check (exists (select 1 from public.schedule_templates t
+                 where t.id = template_id and t.organization_id = public.current_org_id()));
+
+-- checklist_completions: whole org can view; any staff completes their OWN; managers manage.
+drop policy if exists checklist_select on public.checklist_completions;
+create policy checklist_select on public.checklist_completions for select
+  using (organization_id = public.current_org_id());
+drop policy if exists checklist_complete on public.checklist_completions;
+create policy checklist_complete on public.checklist_completions for insert
+  with check (organization_id = public.current_org_id() and completed_by = auth.uid());
+drop policy if exists checklist_manage on public.checklist_completions;
+create policy checklist_manage on public.checklist_completions for update
+  using (organization_id = public.current_org_id()
+         and public.has_role('super_admin','org_admin','ops_manager','lifeguard_manager'));
+
+-- patron_counts: whole org can view; staff on deck log counts; managers manage.
+drop policy if exists patron_select on public.patron_counts;
+create policy patron_select on public.patron_counts for select
+  using (organization_id = public.current_org_id());
+drop policy if exists patron_insert on public.patron_counts;
+create policy patron_insert on public.patron_counts for insert
+  with check (organization_id = public.current_org_id() and recorded_by = auth.uid());
+drop policy if exists patron_manage on public.patron_counts;
+create policy patron_manage on public.patron_counts for update
+  using (organization_id = public.current_org_id()
+         and public.has_role('super_admin','org_admin','ops_manager','lifeguard_manager'));
+
+-- shift_reports: whole org can view; staff submit their OWN; managers review (update).
+drop policy if exists reports_select on public.shift_reports;
+create policy reports_select on public.shift_reports for select
+  using (organization_id = public.current_org_id());
+drop policy if exists reports_submit on public.shift_reports;
+create policy reports_submit on public.shift_reports for insert
+  with check (organization_id = public.current_org_id() and staff_id = public.current_staff_id());
+drop policy if exists reports_review on public.shift_reports;
+create policy reports_review on public.shift_reports for update
+  using (organization_id = public.current_org_id()
+         and public.has_role('super_admin','org_admin','ops_manager','lifeguard_manager'));
 
 -- Done. Next: realtime.sql

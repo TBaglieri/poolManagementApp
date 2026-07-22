@@ -122,7 +122,11 @@ this list, committing each item to `main`. ☑ = done+build-verified, ⏳ = in p
 - ☐ Messaging: targeted groups + unread (realtime is live-only)
 
 **Phase 2 — RBAC server enforcement**
-- ☐ Harden RLS for all tables; permission-matrix tests
+- ☑ Harden RLS: staff self-service policies for shifts (claim open), shift_trade_requests
+  (insert own/approve), checklist_completions, patron_counts, shift_reports; scoped
+  policies for schedule_draft_shifts + schedule_template_requirements (were default-deny).
+  ⚠ Careful SQL, but **not yet applied/tested on a live DB** (no project).
+- ☑ Permission-matrix + privilege-escalation tests (see Phase 4)
 
 **Phase 4 — QA & hardening**
 - ☑ Vitest set up; 39 passing tests — RBAC matrix + privilege escalation, scheduling
