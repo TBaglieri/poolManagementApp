@@ -13,7 +13,12 @@
 -- 1) Additive column: the full tenant config blob (validated by TenantConfigSchema).
 alter table public.organizations add column if not exists config jsonb;
 alter table public.organizations add column if not exists slug text;
-create unique index if not exists idx_org_slug on public.organizations(slug) where slug is not null;
+-- Unique index on slug so upserts can use ON CONFLICT (slug). Must be a PLAIN
+-- (non-partial) index: a partial index (WHERE slug IS NOT NULL) can't be matched by
+-- PostgREST's upsert or a bare ON CONFLICT (slug). Postgres still allows many NULL
+-- slugs (NULLs are distinct), so this is safe on existing rows.
+drop index if exists idx_org_slug;
+create unique index if not exists idx_org_slug on public.organizations(slug);
 
 -- 2) Seed the free-trial customer: Villas on the Ridge (Dobbs Ferry, NY).
 --    Idempotent: insert if missing, else refresh identity + config.
@@ -34,9 +39,11 @@ values (
     'branding', jsonb_build_object('monogram', 'VR', 'fontFamily', 'Inter'),
     'theme', jsonb_build_object('brand', '#0F7285', 'secondary', '#28323E', 'accent', '#C89B6C',
                                 'radius', 'soft', 'density', 'comfortable', 'defaultScheme', 'light'),
-    'features', jsonb_build_object('lessons', false, 'community', false),
-    'roleLabels', jsonb_build_object('org_admin', 'Board', 'ops_manager', 'Pool Manager',
-                                     'hr_coordinator', 'Membership', 'head_lifeguard', 'Head Guard'),
+    'features', jsonb_build_object('lessons', false, 'members', false, 'reservations', false,
+                                   'guestPasses', false, 'community', false, 'billing', false,
+                                   'inspections', false, 'patronCounts', false),
+    'activeRoles', jsonb_build_array('org_admin', 'lifeguard'),
+    'roleLabels', jsonb_build_object('org_admin', 'Admin / Pool Manager', 'lifeguard', 'Lifeguard'),
     'operations', jsonb_build_object('poolHours', '9:00 AM – 8:00 PM', 'seasonStart', '05-24',
                                      'seasonEnd', '09-07', 'maxGuestsPerMember', 2, 'reservationSlotMinutes', 45)
   )
