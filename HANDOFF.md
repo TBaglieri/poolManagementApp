@@ -115,6 +115,29 @@ new pool"** generator (name + color → registry-ready config). Gated to
   on top of the shell + `.card`/`.input`/`.btn` coverage, so dark mode reads
   coherently across the app.
 
+## Third pass — updated prompt (§4 accounts & roles, §8 gated demo)
+
+The prompt was revised with three genuinely new requirements; all are done and on `main`:
+
+- **Per-tenant active roles (§4):** `TenantConfig.activeRoles`. Default = full 12-role
+  hierarchy; **Villas runs a two-role setup** (Admin/Pool Manager = `org_admin`
+  all-access, Lifeguard = `lifeguard`), configured through the same setting every
+  tenant uses — no hardcoded special case. `super_admin` stays platform-wide.
+  Lifeguards can now log water chemistry + file reports (base-product change,
+  documented in DECISIONS). Invite/role pickers show only the tenant's active roles.
+- **Fixed broken account creation (§4):** root cause was a missing `profiles`
+  bootstrap on signup (FK violation) — see AUDIT.md §4b. Added the
+  `auth-profile-trigger.sql`, a cross-device invite lookup route, an accept flow with
+  full validation + failure states, and closed a privilege-escalation hole in the
+  invite API. Individual per-guard onboarding: bulk invite ~10 guards, shareable
+  links, resend/revoke/deactivate/reset — all in the admin Users page. Attribution is
+  preserved (deactivation keeps a person's history under their name).
+- **Gated, non-public demo (§8):** the demo is now a standalone `demo` tenant that
+  resolves ONLY with a secret token (`/enter-demo?token=…`, `DEMO_ACCESS_TOKEN`).
+  Every public demo entry point was removed (landing, marketing nav/footer, pricing,
+  and the login role switcher — the switcher now shows ONLY inside the gated demo).
+  Rotating the token revokes all access. Verified at runtime.
+
 ## What's still incomplete or shaky (honest list)
 1. **Dark mode: primitives + shell are covered, not every inline color.** Feature
    pages with literal `bg-white`/`text-slate-900` inside a page (not via the shared

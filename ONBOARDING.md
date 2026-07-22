@@ -64,6 +64,33 @@ and reachable by URL, do Option B step 1 with the JSON you downloaded.
 
 ---
 
+## Spin up (and revoke) a gated demo for a prospect
+
+The demo is a **standalone, invitation-only** tenant. It is never linked from the
+public UI and never resolves without a token, so Villas users and random visitors
+can't reach or discover it.
+
+**Give a prospect access:**
+1. Set a secret in the environment (per deployment): `DEMO_ACCESS_TOKEN=<long-random-string>`.
+   (Locally it defaults to `poolops-demo` so you can try it immediately.)
+2. Send them exactly one link:
+   `https://<your-app>/enter-demo?token=<the-secret>`
+   (or, single-tenant style, a dedicated unlisted `demo.<your-app>` host).
+3. That link sets a `demo_access` cookie, drops them into the `demo` tenant on the
+   dashboard, and unlocks the **role switcher** (top bar) so they can explore every
+   role. All other tenants keep the switcher hidden.
+
+**Seed the demo data** (realistic season of readings, roster, shifts, chat threads):
+- Local / mock mode: the app ships with a full bundled demo dataset — nothing to run.
+- Supabase mode: apply `supabase/seed-villas.sql` (single-facility dataset) under a
+  demo org; it's isolated from real tenants by the same RLS in §7.
+
+**Revoke access:**
+- A prospect can leave via the **Exit Demo** button (clears their cookie).
+- To cut off everyone at once, **rotate `DEMO_ACCESS_TOKEN`** — every existing demo
+  link/cookie stops working immediately. No code change or redeploy of the app logic
+  is needed beyond updating the env var.
+
 ## What you get automatically
 
 - The new pool renders in **its own branding and theme**, WCAG-checked.
