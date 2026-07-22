@@ -16,13 +16,17 @@
     "typecheck": "npm run typecheck --workspace @poolops/web",
     "dev:mobile": "npm --prefix apps/mobile run start",
     "install:mobile": "npm --prefix apps/mobile install",
+    "seed:villas": "tsx scripts/seed-villas.ts",
+    "create-admin": "tsx scripts/create-admin.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "e2e": "playwright test"
   },
   "engines": {
     "node": ">=18.18.0"
   },
   "devDependencies": {
+    "tsx": "^4.19.1",
     "vitest": "^4.1.10"
   }
 }

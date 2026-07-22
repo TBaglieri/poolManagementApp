@@ -76,8 +76,15 @@ export const TENANT_INPUTS: Record<string, TenantConfigInput> = {
       emailFooter: "Sent by the Villas on the Ridge pool management team.",
       notificationSender: "Villas on the Ridge Pool",
     },
-    // A small community pool: no swim-lessons program, no cross-facility network.
-    features: { lessons: false, community: false },
+    // A small community pool. Core ops ON (chemicals, scheduling, chat, time clock,
+    // staff/onboarding/certs, maintenance/incidents, checklists, shift reports,
+    // documents, payroll, reports). OFF (not needed yet, all still toggleable):
+    // swim lessons, members, reservations, guest passes, community network, billing,
+    // formal inspections, patron counts.
+    features: {
+      lessons: false, members: false, reservations: false, guestPasses: false,
+      community: false, billing: false, inspections: false, patronCounts: false,
+    },
     // Villas runs a stripped-down TWO-role setup: an all-access Admin/Pool Manager
     // and individual Lifeguards. The full hierarchy stays available in the base
     // product — switch it on for a larger facility via config, no new code.
