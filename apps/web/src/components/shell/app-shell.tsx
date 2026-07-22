@@ -8,6 +8,7 @@ import { ALL_NAV_ITEMS, isModuleEnabled, moduleForPath, isDemoTenant } from "@po
 import { useAccess, useHydrated } from "@/lib/access";
 import { useSession } from "@/lib/session";
 import { useTenantConfig } from "@/lib/tenant/provider";
+import { requiresLoginRedirect } from "@/lib/demo-mode";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { SupabaseHydrator } from "./supabase-hydrator";
@@ -29,7 +30,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!hydrated) return;
-    if (!role) { router.replace("/login"); return; }
+    // No authenticated session → login. Never fall through to a demo user.
+    if (requiresLoginRedirect(hydrated, role)) { router.replace("/login"); return; }
     // Real customer without an organization → send to setup (never trap them).
     if (mode === "real" && !hasOrganization) router.replace("/setup");
   }, [hydrated, role, mode, hasOrganization, router]);

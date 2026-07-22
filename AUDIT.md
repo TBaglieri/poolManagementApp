@@ -284,6 +284,38 @@ Villas' config points `icon`/`iconDark`/`logoLight`/`logoDark`/`favicon`/
 / generated favicon / `/api/og/<slug>` card. Regeneration steps live in
 `apps/web/public/branding/README.md`.
 
+## 4g. Why a real login still showed a demo user + "Local demo" chrome
+
+**Root cause (two spots, one theme: demo was the global default, not scoped to the
+demo tenant).** The effective data mode defaults to `mock` unless
+`NEXT_PUBLIC_DATA_MODE=supabase` **and** the URL/anon key are set
+(`packages/supabase/src/config.ts` → `getEffectiveDataMode`). In `mock` mode:
+
+1. **The login handler fell back to demo on every tenant.** `login/page.tsx`'s
+   `handleAuth` did `if (!supabaseMode) { enter("org_admin"); return; }` — so signing
+   in at `/villas/login` with correct credentials **ignored them** and entered DEMO
+   mode as the `org_admin` demo staff, whose name is **"Marcus Reyes"**
+   (`DEMO_STAFF_BY_ROLE`). That single line is the "hardcoded current user overriding
+   the real session." There is no other demo-user provider.
+2. **The sync pill showed "Local demo" app-wide.** `SyncStatus` rendered the `mock`
+   chip ("Local demo") whenever data mode was mock, in real tenants too.
+
+**The fix.**
+- **Demo login is scoped to the demo tenant only.** `handleAuth` now only allows the
+  seeded-role fallback when `isDemoTenant`. On a real tenant it always attempts real
+  Supabase auth; if the app isn't in supabase mode it shows a clear error ("real
+  sign-in isn't configured — set `NEXT_PUBLIC_DATA_MODE=supabase`") and **never enters
+  a demo user**. Auth failure/missing session → stays on login, no demo fallback.
+- **Real identity drives the UI.** After real login, identity comes from the Supabase
+  session (`resolveUserTenant` → real name/role/org + linked staff id), surfaced via
+  `useDisplayName()` and the sidebar footer — the greeting and profile show the real
+  account, not Marcus Reyes.
+- **Demo chrome is gated on the demo tenant.** `SyncStatus` no longer renders the
+  "Local demo" chip outside the demo tenant (the Demo badge + role switcher were
+  already `isDemoTenant`-gated in the topbar). Pure predicates in `lib/demo-mode.ts`
+  (`allowsDemoLoginFallback`, `showsLocalDemoChip`, `requiresLoginRedirect`) centralize
+  the rule and are unit-tested.
+
 ## 5. Known pre-existing gaps (not introduced here, noted for honesty)
 
 - Authorization is UI-level in the app; RLS is the real boundary. This work does not change auth/RLS (per the "don't push destructive/auth changes while away" rule).

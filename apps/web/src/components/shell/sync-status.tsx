@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { getEffectiveDataMode } from "@poolops/supabase";
+import { isDemoTenant } from "@poolops/shared";
 import { useHealth, type HealthStatus } from "@/lib/repos/health";
+import { useTenantConfig } from "@/lib/tenant/provider";
+import { showsLocalDemoChip } from "@/lib/demo-mode";
 import { cn } from "@/lib/cn";
 
 const META: Record<HealthStatus, { label: string; dot: string; text: string; ring: string; pulse: boolean; tip: string }> = {
@@ -20,6 +23,7 @@ const META: Record<HealthStatus, { label: string; dot: string; text: string; rin
 
 export function SyncStatus({ compact = false }: { compact?: boolean }) {
   const health = useHealth();
+  const config = useTenantConfig();
   const [synced, setSynced] = useState<string>("");
 
   useEffect(() => {
@@ -28,6 +32,9 @@ export function SyncStatus({ compact = false }: { compact?: boolean }) {
     const t = setInterval(stamp, 60_000);
     return () => clearInterval(t);
   }, []);
+
+  // "Local demo" (mock data) is demo chrome — never show it outside the demo tenant.
+  if (health.status === "mock" && !showsLocalDemoChip(isDemoTenant(config), "mock")) return null;
 
   const m = META[health.status];
   return (

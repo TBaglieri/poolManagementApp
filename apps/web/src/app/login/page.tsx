@@ -8,6 +8,7 @@ import { ROLE_LIST, getRole, isDemoTenant, type RoleSlug } from "@poolops/shared
 import { getEffectiveDataMode } from "@poolops/supabase";
 import { useSession } from "@/lib/session";
 import { useTenantConfig } from "@/lib/tenant/provider";
+import { allowsDemoLoginFallback } from "@/lib/demo-mode";
 import { resolveUserTenant } from "@/lib/tenant/user-tenant";
 import { signIn } from "@/lib/auth";
 import { Logo } from "@/components/brand";
@@ -48,8 +49,10 @@ export default function LoginPage() {
     e.preventDefault();
     setAuthError(null); setAuthInfo(null);
     if (!supabaseMode) {
-      // Mock mode: treat the email/password form as a demo admin sign-in.
-      enter("org_admin");
+      // Demo TENANT without a backend: the form is a shortcut into the demo admin.
+      // A REAL tenant NEVER falls back to a demo user — it requires real auth.
+      if (allowsDemoLoginFallback(isDemo, supabaseMode)) { enter("org_admin"); return; }
+      setAuthError("Real sign-in isn't configured for this workspace. Set NEXT_PUBLIC_DATA_MODE=supabase (with your Supabase URL + anon key) to enable authentication.");
       return;
     }
     if (!email || !password) { setAuthError("Enter an email and password."); return; }
