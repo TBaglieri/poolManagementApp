@@ -25,14 +25,21 @@ declare
   visible_a int;
   visible_b int;
 begin
+  -- Order matters (FKs): organizations before profiles.organization_id.
+  insert into public.organizations (id, name, type)
+  values (org_a, 'Isolation Org A', 'community_pool'), (org_b, 'Isolation Org B', 'community_pool');
+
   -- Auth users (minimal). Adjust columns if your instance requires more.
   insert into auth.users (instance_id, id, aud, role, email, encrypted_password, created_at, updated_at)
   values ('00000000-0000-0000-0000-000000000000', usr_a, 'authenticated', 'authenticated', 'a@isolation.test', '', now(), now()),
          ('00000000-0000-0000-0000-000000000000', usr_b, 'authenticated', 'authenticated', 'b@isolation.test', '', now(), now());
 
-  insert into public.profiles (id, organization_id, email) values (usr_a, org_a, 'a@isolation.test'), (usr_b, org_b, 'b@isolation.test');
+  -- auth-profile-trigger.sql (if installed) already created these profiles rows on
+  -- the insert above, so UPSERT to set the org rather than plain-insert.
+  insert into public.profiles (id, organization_id, email)
+  values (usr_a, org_a, 'a@isolation.test'), (usr_b, org_b, 'b@isolation.test')
+  on conflict (id) do update set organization_id = excluded.organization_id, email = excluded.email;
 
-  insert into public.organizations (id, name, type) values (org_a, 'Isolation Org A', 'community_pool'), (org_b, 'Isolation Org B', 'community_pool');
   insert into public.organization_members (organization_id, profile_id, role_slug, status)
   values (org_a, usr_a, 'org_admin', 'active'), (org_b, usr_b, 'org_admin', 'active');
 
