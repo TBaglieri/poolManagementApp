@@ -123,6 +123,8 @@ create table if not exists public.staff_profiles (
   id            uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
   profile_id    uuid references public.profiles(id) on delete set null,
+  first_name    text,
+  last_name     text,
   home_facility_id uuid references public.facilities(id) on delete set null,
   facility_ids  uuid[] default '{}',
   primary_role  text references public.roles(slug),
@@ -144,6 +146,9 @@ create table if not exists public.staff_profiles (
 );
 create index if not exists idx_staff_org on public.staff_profiles(organization_id);
 create index if not exists idx_staff_profile on public.staff_profiles(profile_id);
+-- Backfill name columns if the table pre-existed from an earlier partial run.
+alter table public.staff_profiles add column if not exists first_name text;
+alter table public.staff_profiles add column if not exists last_name text;
 
 -- =============================================================================
 -- SCHEDULING

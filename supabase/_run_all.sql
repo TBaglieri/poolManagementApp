@@ -1,7 +1,7 @@
 -- =============================================================================
 -- PoolOps Pro — FULL SETUP (all 5 files concatenated in order).
 -- Paste this whole file into the Supabase SQL Editor and click Run.
--- Generated 2026-07-14T14:42:22Z. Source of truth = the 5 individual files.
+-- Generated 2026-07-14T23:12:00Z. Source of truth = the 5 individual files.
 -- =============================================================================
 
 -- >>>>>>>>>>>>>>>>>>>> BEGIN schema.sql >>>>>>>>>>>>>>>>>>>>
@@ -131,6 +131,8 @@ create table if not exists public.staff_profiles (
   id            uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
   profile_id    uuid references public.profiles(id) on delete set null,
+  first_name    text,
+  last_name     text,
   home_facility_id uuid references public.facilities(id) on delete set null,
   facility_ids  uuid[] default '{}',
   primary_role  text references public.roles(slug),
@@ -152,6 +154,9 @@ create table if not exists public.staff_profiles (
 );
 create index if not exists idx_staff_org on public.staff_profiles(organization_id);
 create index if not exists idx_staff_profile on public.staff_profiles(profile_id);
+-- Backfill name columns if the table pre-existed from an earlier partial run.
+alter table public.staff_profiles add column if not exists first_name text;
+alter table public.staff_profiles add column if not exists last_name text;
 
 -- =============================================================================
 -- SCHEDULING
@@ -1606,6 +1611,12 @@ declare
   ]'::jsonb;
   next_mon date := date_trunc('week', now())::date + 7;  -- Monday of next week
 begin
+  -- Idempotent: if the demo org already exists, don't seed a second copy.
+  if exists (select 1 from public.organizations where name = 'Tide & Town Aquatics') then
+    raise notice 'Demo org already seeded — skipping.';
+    return;
+  end if;
+
   insert into public.organizations (name, type, timezone, plan, billing_status, season_start, season_end)
   values ('Tide & Town Aquatics','community_pool','America/Chicago','medium','active', now()::date - 40, now()::date + 75)
   returning id into v_org;

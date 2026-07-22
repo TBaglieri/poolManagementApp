@@ -150,6 +150,12 @@ declare
   ]'::jsonb;
   next_mon date := date_trunc('week', now())::date + 7;  -- Monday of next week
 begin
+  -- Idempotent: if the demo org already exists, don't seed a second copy.
+  if exists (select 1 from public.organizations where name = 'Tide & Town Aquatics') then
+    raise notice 'Demo org already seeded — skipping.';
+    return;
+  end if;
+
   insert into public.organizations (name, type, timezone, plan, billing_status, season_start, season_end)
   values ('Tide & Town Aquatics','community_pool','America/Chicago','medium','active', now()::date - 40, now()::date + 75)
   returning id into v_org;
