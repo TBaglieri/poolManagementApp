@@ -5,8 +5,8 @@ import { TenantProvider } from "@/lib/tenant/provider";
 import { ThemeInjector } from "@/components/theme/theme-injector";
 import { themeCss, brandHex, faviconDataUri } from "@/lib/tenant/theme-css";
 
-export function generateViewport(): Viewport {
-  const config = getServerTenantConfig();
+export async function generateViewport(): Promise<Viewport> {
+  const config = await getServerTenantConfig();
   return {
     themeColor: brandHex(config, 700),
     width: "device-width",
@@ -14,8 +14,8 @@ export function generateViewport(): Viewport {
   };
 }
 
-export function generateMetadata(): Metadata {
-  const config = getServerTenantConfig();
+export async function generateMetadata(): Promise<Metadata> {
+  const config = await getServerTenantConfig();
   const name = config.productName;
   return {
     title: { default: `${name} — Pool Management`, template: `%s · ${name}` },
@@ -25,9 +25,9 @@ export function generateMetadata(): Metadata {
   };
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const slug = getTenantSlug();
-  const config = getServerTenantConfig();
+  const config = await getServerTenantConfig();
 
   return (
     <html lang="en" className="h-full" suppressHydrationWarning>

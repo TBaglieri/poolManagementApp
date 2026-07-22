@@ -18,12 +18,12 @@ export function SectionCard({
   return (
     <section className={cn("card overflow-hidden", className)}>
       {(title || actions) && (
-        <header className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-3.5">
+        <header className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-3.5 dark:border-slate-800">
           <div className="flex items-center gap-2.5 min-w-0">
             {icon}
             <div className="min-w-0">
-              {title && <h2 className="truncate text-sm font-semibold text-slate-800">{title}</h2>}
-              {subtitle && <p className="truncate text-xs text-slate-400">{subtitle}</p>}
+              {title && <h2 className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{title}</h2>}
+              {subtitle && <p className="truncate text-xs text-slate-400 dark:text-slate-500">{subtitle}</p>}
             </div>
           </div>
           {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}

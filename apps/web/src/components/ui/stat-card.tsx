@@ -19,8 +19,8 @@ export function StatCard({
     <div className={cn("card card-hover p-5", className)}>
       <div className="flex items-start justify-between">
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-slate-500">{label}</p>
-          <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900">{value}</p>
+          <p className="truncate text-sm font-medium text-slate-500 dark:text-slate-400">{label}</p>
+          <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">{value}</p>
         </div>
         {icon && (
           <span className={cn("flex h-10 w-10 items-center justify-center rounded-xl", INTENT_CLASSES[intent])}>

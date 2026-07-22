@@ -17,7 +17,7 @@ export function Tabs({
   className?: string;
 }) {
   return (
-    <div className={cn("flex items-center gap-1 overflow-x-auto no-scrollbar border-b border-slate-200", className)}>
+    <div className={cn("flex items-center gap-1 overflow-x-auto no-scrollbar border-b border-slate-200 dark:border-slate-800", className)}>
       {tabs.map((t) => {
         const isActive = t.key === active;
         return (
@@ -26,7 +26,7 @@ export function Tabs({
             onClick={() => onChange(t.key)}
             className={cn(
               "relative whitespace-nowrap px-3.5 py-2.5 text-sm font-medium transition-colors",
-              isActive ? "text-brand-700" : "text-slate-500 hover:text-slate-800",
+              isActive ? "text-brand-700 dark:text-brand-300" : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200",
             )}
           >
             <span className="flex items-center gap-1.5">

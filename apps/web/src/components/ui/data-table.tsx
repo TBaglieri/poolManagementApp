@@ -28,12 +28,12 @@ export function DataTable<T>({
     <div className="overflow-x-auto scrollbar-thin">
       <table className="w-full border-collapse text-sm">
         <thead>
-          <tr className="border-b border-slate-200">
+          <tr className="border-b border-slate-200 dark:border-slate-800">
             {columns.map((c) => (
               <th
                 key={c.key}
                 className={cn(
-                  "whitespace-nowrap px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400",
+                  "whitespace-nowrap px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500",
                   align(c.align), c.hideOnMobile && "hidden md:table-cell",
                 )}
               >
@@ -42,21 +42,21 @@ export function DataTable<T>({
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
           {rows.map((row) => (
             <tr
               key={getKey(row)}
               onClick={onRowClick ? () => onRowClick(row) : undefined}
               className={cn(
                 "transition-colors",
-                onRowClick && "cursor-pointer hover:bg-slate-50/80",
+                onRowClick && "cursor-pointer hover:bg-slate-50/80 dark:hover:bg-slate-800/60",
               )}
             >
               {columns.map((c) => (
                 <td
                   key={c.key}
                   className={cn(
-                    "px-4 align-middle text-slate-700",
+                    "px-4 align-middle text-slate-700 dark:text-slate-300",
                     dense ? "py-2" : "py-3",
                     align(c.align), c.className, c.hideOnMobile && "hidden md:table-cell",
                   )}

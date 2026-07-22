@@ -92,33 +92,48 @@ new pool"** generator (name + color → registry-ready config). Gated to
 
 ---
 
-## What's incomplete or shaky (honest list)
-1. **Dark mode is wired end-to-end but visually partial.** The toggle, per-user
-   preference, tenant `defaultScheme`/`allowUserScheme`, pre-paint class, and dark
-   styling for the shell + shared component classes (`.card`, `.input`, `.btn-*`,
-   sidebar, topbar) are done. Feature pages that use literal `bg-white`/`text-slate-*`
-   (rather than the shared classes) are **not** fully dark-themed yet. Tenants default
-   to light, so this doesn't affect the Villas demo. Follow-up: sweep `dark:` variants
-   across the ~40 feature pages, or tokenize surface colors.
-2. **Admin "Save" persistence is browser-local in mock mode.** It writes to
-   `localStorage` (fully reversible) and previews app-wide. Persisting to the DB
-   (`organizations.config`) needs the additive `tenant-config.sql` run **and** a
-   small server-side read wired into `getServerTenantConfig` (today it resolves from
-   the in-code registry — fast and reliable, but the DB column isn't consumed yet).
-3. **The admin UI wasn't click-tested in a browser** (unattended, no session). Its
-   logic typechecks and builds; please do a 5-minute manual pass: Settings → Branding
-   & Modules → change a color/toggle a module → Save.
-4. **Operational demo data is the shared multi-facility seed** (branded as Villas),
-   not a bespoke single-facility Villas dataset. The *shape* is exactly what a board
-   walkthrough needs (season of readings, roster, shifts, chat). A dedicated
-   single-pool Villas dataset is a noted follow-up, not built (didn't want to rewrite
-   the large working seed unattended).
-5. **`reservations` and `guestPasses`** modules exist in the registry (so the flag
+## Second pass — gaps I went back and closed
+
+- **DB-backed tenant config (spec §1) is now wired.** `getServerTenantConfig` reads
+  `organizations.config` for an authenticated user in supabase mode and deep-merges
+  it onto the registry, with graceful fallback to the registry on any error (missing
+  column, RLS, network). It's **auth-gated** — anonymous/demo requests skip the DB
+  entirely, so the branded login page still renders in ~45 ms. The admin "Save" now
+  also best-effort persists to the org's `config` column (RLS-scoped) in addition to
+  localStorage. Registry remains the fast pre-auth source of truth.
+- **Dedicated Villas demo seed (spec §8):** `supabase/seed-villas.sql` — a realistic
+  single-facility dataset (1 pool, a 6-person roster, a week of shifts, **60 days of
+  chemical readings**, 3 chat channels + threads, maintenance issues, hourly patron
+  counts). Additive + idempotent (keyed on slug/facility). Not run — apply it in the
+  SQL editor for a supabase-mode Villas walkthrough.
+- **Live cross-tenant isolation test (spec §7):** `supabase/tenant-isolation.test.sql`
+  creates two throwaway orgs/users, impersonates one via the JWT claim, asserts it
+  sees only its own org's rows (raises on a cross-tenant leak), and ROLLBACKs. Runs
+  by hand in the SQL editor; complements the static RLS-coverage vitest.
+- **Broader dark mode:** added `dark:` variants to the shared primitives most pages
+  use (StatCard, DataTable, Modal/Drawer, EmptyState, PageHeader, SectionCard, Tabs)
+  on top of the shell + `.card`/`.input`/`.btn` coverage, so dark mode reads
+  coherently across the app.
+
+## What's still incomplete or shaky (honest list)
+1. **Dark mode: primitives + shell are covered, not every inline color.** Feature
+   pages with literal `bg-white`/`text-slate-900` inside a page (not via the shared
+   primitives) may still show a light patch in dark mode. Tenants default to light so
+   the Villas demo is unaffected. Remaining work is a mechanical `dark:` sweep.
+2. **The admin UI wasn't click-tested in a browser** (no interactive session here).
+   Logic typechecks + builds and the route renders; please do a 5-minute manual pass:
+   Settings → Branding & Modules → change a color / toggle a module → Save.
+3. **DB config write is untested against a live authenticated admin.** The read path
+   is verified (falls back cleanly); the write path is best-effort and RLS-guarded but
+   only fires for a real signed-in admin whose org row has a matching `slug`
+   (run `tenant-config.sql` first so the `slug`/`config` columns exist).
+4. **`reservations` and `guestPasses`** modules exist in the registry (so the flag
    system is complete) but ship no UI — marked "Soon" in the admin and disabled.
+5. **Live SQL isolation test is version-sensitive** (inserts into `auth.users`); the
+   column set may need a tweak on some Supabase versions (noted in the file).
 6. Pre-existing gaps I did **not** touch (out of scope): real Stripe, file-upload to
    storage, email/SMS, some CSV exports. Authorization remains UI-level in the app
-   with RLS as the real boundary — unchanged (per the "no auth changes while away"
-   rule).
+   with RLS as the real boundary — unchanged.
 
 ## Branches waiting on you
 None. All work is on `main`. The only migration (`supabase/tenant-config.sql`) is

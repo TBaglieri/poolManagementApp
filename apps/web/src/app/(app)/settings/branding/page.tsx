@@ -12,6 +12,7 @@ import {
   isModuleEnabled, type DeepPartial, type TenantConfig,
 } from "@poolops/shared";
 import { useAccess } from "@/lib/access";
+import { repos } from "@/lib/repos";
 import { useTenant } from "@/lib/tenant/provider";
 import { PageHeader } from "@/components/ui/page-header";
 import { SectionCard } from "@/components/ui/section-card";
@@ -92,7 +93,13 @@ export default function BrandingAdminPage() {
 
   if (!can("settings.manage")) return <AccessRestricted />;
 
-  const onSave = () => { save(draft); savedRef.current = JSON.stringify(draft); };
+  const onSave = () => {
+    save(draft);
+    savedRef.current = JSON.stringify(draft);
+    // Best-effort persist to the DB for authenticated admins (RLS-scoped); the
+    // localStorage copy from save() is the reliable fallback in demo/mock mode.
+    void repos.tenants.saveConfig(slug, draft);
+  };
   const onDiscard = () => {
     const restored = (() => { try { const raw = localStorage.getItem(`poolops-tenant-override:${slug}`); return raw ? JSON.parse(raw) : {}; } catch { return {}; } })();
     setDraftState(restored); savedRef.current = JSON.stringify(restored); discardPreview();

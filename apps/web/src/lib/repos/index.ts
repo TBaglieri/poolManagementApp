@@ -260,6 +260,26 @@ export const repos = {
     setupPackages: () => SETUP_PACKAGES,
   },
 
+  /** White-label tenant config persistence (org-scoped by RLS). */
+  tenants: {
+    /**
+     * Persist a tenant config override to the org's `config` column. Best-effort:
+     * only runs in supabase mode for an authenticated admin (RLS restricts the
+     * update to their own org). The admin UI always keeps a localStorage copy too.
+     */
+    async saveConfig(slug: string, override: unknown): Promise<{ ok: boolean; source: DataSource; error: string | null }> {
+      if (activeMode() !== "supabase") return { ok: true, source: "mock", error: null };
+      const client = db();
+      if (!client) return { ok: false, source: "mock", error: "Supabase not configured" };
+      try {
+        const { error } = await client.from("organizations").update({ config: override as any }).eq("slug", slug);
+        return { ok: !error, source: "supabase", error: error?.message ?? null };
+      } catch (e: any) {
+        return { ok: false, source: "supabase", error: e?.message ?? "Save failed" };
+      }
+    },
+  },
+
   billing: {
     async subscription(): Promise<RepoResult<{ tier: string; status: string } | null>> {
       if (activeMode() !== "supabase") return { data: { tier: "medium", status: "active" }, source: "mock", error: null };
