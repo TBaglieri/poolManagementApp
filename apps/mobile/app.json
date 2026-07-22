@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "PoolOps Pro",
+    "slug": "poolops-pro",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "poolops",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#0E7490"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "pro.poolops.app"
+    },
+    "android": {
+      "package": "pro.poolops.app"
+    },
+    "extra": {
+      "note": "Public EXPO_PUBLIC_* env vars are read at runtime. Never embed secrets."
+    }
+  }
+}

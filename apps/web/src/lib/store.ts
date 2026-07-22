@@ -1,0 +1,264 @@
+"use client";
+
+import { create } from "zustand";
+import {
+  getFacility, staffName, uid,
+  type ChemicalLog, type ChemicalRange, type ChecklistCompletion, type ID,
+  type MaintenanceIssue, type Message, type MessageKind, type Notification, type PatronCount,
+  type RequestStatus, type ShiftReport, type ShiftTradeRequest, type TimeClockEntry,
+  type TimeOffRequest, type IssueStatus, type MessageTemplateKey, type SubmissionStatus,
+  type OnboardingStepKey, type Shift,
+  channels as seedChannels, chemicalLogs as seedChem, checklistCompletions as seedChecklists,
+  maintenanceIssues as seedIssues, messages as seedMessages, notifications as seedNotifications,
+  onboardingSubmissions as seedOnboarding, patronCounts as seedPatron, shiftReports as seedReports,
+  shiftTradeRequests as seedTrades, timeClockEntries as seedClock, timeOffRequests as seedTimeOff,
+} from "@poolops/shared";
+import type { ScheduleDraft } from "@poolops/scheduling";
+
+export interface ScheduleSettings {
+  autoPostToAllTeam: boolean;
+  allowStaffComments: boolean;
+  notifyInApp: boolean;
+  emailSms: boolean;
+}
+
+export interface PostOptions {
+  template?: MessageTemplateKey;
+  priority?: "normal" | "urgent";
+  kind?: MessageKind;
+  pinned?: boolean;
+  linkUrl?: string;
+}
+
+const clone = <T,>(v: T): T =>
+  typeof structuredClone === "function" ? structuredClone(v) : JSON.parse(JSON.stringify(v));
+
+function chemFlags(facilityId: ID, values: Record<string, number>): string[] {
+  const f = getFacility(facilityId);
+  if (!f) return [];
+  const r = f.chemicalRanges;
+  return (Object.keys(r) as (keyof ChemicalRange)[]).filter((k) => {
+    const [min, max] = r[k];
+    const v = values[k];
+    return typeof v === "number" && (v < min || v > max);
+  });
+}
+
+interface DemoState {
+  timeOff: TimeOffRequest[];
+  trades: ShiftTradeRequest[];
+  clock: TimeClockEntry[];
+  issues: MaintenanceIssue[];
+  chemicals: ChemicalLog[];
+  messages: Message[];
+  checklists: ChecklistCompletion[];
+  patron: PatronCount[];
+  reports: ShiftReport[];
+  notifications: Notification[];
+  onboarding: typeof seedOnboarding;
+  channels: typeof seedChannels;
+  drafts: ScheduleDraft[];
+  publishedShifts: Shift[];
+  scheduleSettings: ScheduleSettings;
+
+  addDraft: (draft: ScheduleDraft) => void;
+  removeDraft: (id: ID) => void;
+  updateDraftShift: (draftId: ID, shiftId: ID, assignedStaffId: ID | null) => void;
+  publishDraft: (draftId: ID, publishedBy: ID) => { assignedCount: number };
+  setScheduleSetting: (key: keyof ScheduleSettings, value: boolean) => void;
+
+  reviewTimeOff: (id: ID, status: RequestStatus, reviewer: ID) => void;
+  reviewTrade: (id: ID, status: RequestStatus) => void;
+  toggleClock: (staffId: ID, facilityId: ID) => void;
+  addIssue: (issue: Omit<MaintenanceIssue, "id" | "reportedAt">) => void;
+  setIssueStatus: (id: ID, status: IssueStatus) => void;
+  assignIssue: (id: ID, staffId: ID) => void;
+  addChemicalLog: (log: Omit<ChemicalLog, "id" | "recordedAt" | "outOfRange">) => string[];
+  postMessage: (channelId: ID, senderId: ID, body: string, opts?: PostOptions) => void;
+  togglePinMessage: (id: ID) => void;
+  completeChecklist: (c: Omit<ChecklistCompletion, "id" | "completedAt">) => void;
+  addPatronCount: (facilityId: ID, timeSlot: string, count: number, by: ID) => void;
+  addReport: (r: Omit<ShiftReport, "id">) => void;
+  markNotificationsRead: () => void;
+  setOnboardingStep: (staffId: ID, step: OnboardingStepKey, status: SubmissionStatus) => void;
+}
+
+export const useDemo = create<DemoState>((set) => ({
+  timeOff: clone(seedTimeOff),
+  trades: clone(seedTrades),
+  clock: clone(seedClock),
+  issues: clone(seedIssues),
+  chemicals: clone(seedChem),
+  messages: clone(seedMessages),
+  checklists: clone(seedChecklists),
+  patron: clone(seedPatron),
+  reports: clone(seedReports),
+  notifications: clone(seedNotifications),
+  onboarding: clone(seedOnboarding),
+  channels: clone(seedChannels),
+  drafts: [],
+  publishedShifts: [],
+  scheduleSettings: { autoPostToAllTeam: true, allowStaffComments: true, notifyInApp: true, emailSms: false },
+
+  addDraft: (draft) => set((s) => ({ drafts: [draft, ...s.drafts.filter((d) => d.id !== draft.id)] })),
+
+  removeDraft: (id) => set((s) => ({ drafts: s.drafts.filter((d) => d.id !== id) })),
+
+  updateDraftShift: (draftId, shiftId, assignedStaffId) =>
+    set((s) => ({
+      drafts: s.drafts.map((d) =>
+        d.id !== draftId ? d : {
+          ...d,
+          shifts: d.shifts.map((sh) =>
+            sh.id === shiftId ? { ...sh, assignedStaffId, isOpenShift: assignedStaffId === null } : sh,
+          ),
+        },
+      ),
+    })),
+
+  publishDraft: (draftId, publishedBy) => {
+    let assignedCount = 0;
+    set((s) => {
+      const draft = s.drafts.find((d) => d.id === draftId);
+      if (!draft) return {};
+      const assigned = draft.shifts.filter((sh) => sh.assignedStaffId);
+      assignedCount = assigned.length;
+      const newShifts: Shift[] = draft.shifts.map((sh) => ({
+        id: uid("shift"), facilityId: sh.facilityId, position: sh.position, date: sh.date,
+        start: sh.start, end: sh.end, assignedStaffId: sh.assignedStaffId,
+        status: sh.assignedStaffId ? "published" : "open",
+      }));
+      const settings = s.scheduleSettings;
+      const messages = [...s.messages];
+      if (settings.autoPostToAllTeam) {
+        messages.push({
+          id: uid("msg"), channelId: "ch_all", senderId: publishedBy,
+          body: `📅 Next week's schedule has been published. Please review your assigned shifts in My Schedule. ${draft.unfilledCount > 0 ? `${draft.unfilledCount} open shift(s) are available to pick up.` : ""}`.trim(),
+          sentAt: new Date().toISOString(), pinned: true, priority: "normal",
+          kind: "schedule_publish", linkUrl: "/schedule",
+        });
+      }
+      const staffIds = Array.from(new Set(assigned.map((sh) => sh.assignedStaffId!)));
+      const notifications = settings.notifyInApp
+        ? [
+            ...staffIds.map((sid) => ({
+              id: uid("ntf"), kind: "system" as const, title: "New schedule published",
+              body: `Your shifts for the week of ${draft.weekStart} are ready. Tap to view.`,
+              at: new Date().toISOString(), read: false, href: "/schedule",
+            })),
+            ...s.notifications,
+          ]
+        : s.notifications;
+      return {
+        drafts: s.drafts.map((d) => (d.id === draftId ? { ...d, status: "published" } : d)),
+        publishedShifts: [...newShifts, ...s.publishedShifts],
+        messages, notifications,
+      };
+    });
+    return { assignedCount };
+  },
+
+  setScheduleSetting: (key, value) =>
+    set((s) => ({ scheduleSettings: { ...s.scheduleSettings, [key]: value } })),
+
+  reviewTimeOff: (id, status, reviewer) =>
+    set((s) => ({
+      timeOff: s.timeOff.map((r) => (r.id === id ? { ...r, status, reviewedBy: reviewer } : r)),
+    })),
+
+  reviewTrade: (id, status) =>
+    set((s) => ({ trades: s.trades.map((t) => (t.id === id ? { ...t, status } : t)) })),
+
+  toggleClock: (staffId, facilityId) =>
+    set((s) => {
+      const existing = s.clock.find(
+        (e) => e.staffId === staffId && (e.status === "clocked_in" || e.status === "late"),
+      );
+      if (existing) {
+        return {
+          clock: s.clock.map((e) =>
+            e.id === existing.id ? { ...e, clockOut: new Date().toISOString(), status: "clocked_out" } : e,
+          ),
+        };
+      }
+      const entry: TimeClockEntry = {
+        id: uid("tc"), staffId, facilityId, clockIn: new Date().toISOString(),
+        clockOut: null, breakMinutes: 0, status: "clocked_in", flagged: false,
+      };
+      return { clock: [entry, ...s.clock] };
+    }),
+
+  addIssue: (issue) =>
+    set((s) => ({
+      issues: [{ ...issue, id: uid("mi"), reportedAt: new Date().toISOString() }, ...s.issues],
+    })),
+
+  setIssueStatus: (id, status) =>
+    set((s) => ({ issues: s.issues.map((i) => (i.id === id ? { ...i, status } : i)) })),
+
+  assignIssue: (id, staffId) =>
+    set((s) => ({ issues: s.issues.map((i) => (i.id === id ? { ...i, assignedTo: staffId } : i)) })),
+
+  addChemicalLog: (log) => {
+    const values = {
+      freeChlorine: log.freeChlorine, combinedChlorine: log.combinedChlorine, ph: log.ph,
+      alkalinity: log.alkalinity, calciumHardness: log.calciumHardness,
+      cyanuricAcid: log.cyanuricAcid, waterTemp: log.waterTemp,
+    };
+    const flags = chemFlags(log.facilityId, values);
+    set((s) => ({
+      chemicals: [
+        { ...log, id: uid("chem"), recordedAt: new Date().toISOString(), outOfRange: flags },
+        ...s.chemicals,
+      ],
+    }));
+    return flags;
+  },
+
+  postMessage: (channelId, senderId, body, opts = {}) =>
+    set((s) => ({
+      messages: [
+        ...s.messages,
+        {
+          id: uid("msg"), channelId, senderId, body, sentAt: new Date().toISOString(),
+          pinned: opts.pinned ?? false, template: opts.template,
+          priority: opts.priority ?? "normal", kind: opts.kind ?? "message", linkUrl: opts.linkUrl,
+        },
+      ],
+    })),
+
+  togglePinMessage: (id) =>
+    set((s) => ({ messages: s.messages.map((m) => (m.id === id ? { ...m, pinned: !m.pinned } : m)) })),
+
+  completeChecklist: (c) =>
+    set((s) => ({
+      checklists: [{ ...c, id: uid("clc"), completedAt: new Date().toISOString() }, ...s.checklists],
+    })),
+
+  addPatronCount: (facilityId, timeSlot, count, by) =>
+    set((s) => ({
+      patron: [
+        { id: uid("pc"), facilityId, recordedAt: new Date().toISOString(), recordedBy: by, timeSlot, count },
+        ...s.patron,
+      ],
+    })),
+
+  addReport: (r) => set((s) => ({ reports: [{ ...r, id: uid("sr") }, ...s.reports] })),
+
+  markNotificationsRead: () =>
+    set((s) => ({ notifications: s.notifications.map((n) => ({ ...n, read: true })) })),
+
+  setOnboardingStep: (staffId, step, status) =>
+    set((s) => {
+      const idx = s.onboarding.findIndex((o) => o.staffId === staffId && o.step === step);
+      const submittedAt = status === "submitted" || status === "approved" ? new Date().toISOString() : undefined;
+      if (idx >= 0) {
+        const next = [...s.onboarding];
+        next[idx] = { ...next[idx], status, submittedAt: submittedAt ?? next[idx].submittedAt };
+        return { onboarding: next };
+      }
+      return {
+        onboarding: [...s.onboarding, { id: uid("ob"), staffId, step, status, submittedAt }],
+      };
+    }),
+}));

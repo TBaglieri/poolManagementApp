@@ -1,0 +1,23 @@
+{
+  "name": "poolops-pro",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PoolOps Pro — aquatics & community-pool operations platform (web + mobile monorepo).",
+  "workspaces": [
+    "apps/web",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev:web",
+    "dev:web": "npm run dev --workspace @poolops/web",
+    "build:web": "npm run build --workspace @poolops/web",
+    "start:web": "npm run start --workspace @poolops/web",
+    "lint:web": "npm run lint --workspace @poolops/web",
+    "typecheck": "npm run typecheck --workspace @poolops/web",
+    "dev:mobile": "npm --prefix apps/mobile run start",
+    "install:mobile": "npm --prefix apps/mobile install"
+  },
+  "engines": {
+    "node": ">=18.18.0"
+  }
+}
