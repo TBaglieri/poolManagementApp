@@ -45,3 +45,4 @@ prisma/*.db-journal
 
 # typescript build info
 *.tsbuildinfo
+/web/tsconfig.tsbuildinfo

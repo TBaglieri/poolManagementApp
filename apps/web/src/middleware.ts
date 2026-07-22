@@ -1,24 +1,21 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getTenantConfig, isPathEnabled, KNOWN_TENANT_SLUGS, moduleForPath, DEMO_TENANT_SLUG } from "@poolops/shared/tenant";
+import { resolveTenant, getTenantConfig, isPathEnabled, moduleForPath, DEMO_TENANT_SLUG } from "@poolops/shared/tenant";
 
 /**
  * Tenant resolution + server-side module gating + gated-demo access.
  *
- * Resolution order (most specific first):
- *   1. `?tenant=` query          — local/dev override
- *   2. valid demo access cookie   — once granted, the visitor stays in the demo
- *   3. NEXT_PUBLIC_TENANT env      — deployment pin
- *   4. subdomain                   — villas.myapp.com → "villas" (primary mechanism)
- *   5. custom domain map           — pool.villasontheridge.com → "villas"
- *   6. default                     — the trial customer, Villas on the Ridge
+ * Host (subdomain / custom domain) is the PRIMARY mechanism. The first URL path
+ * segment is a FALLBACK so this deployment can reach a tenant at
+ * `https://<app>.vercel.app/<slug>` today with no custom domain, and move to a
+ * subdomain later with no rework. See resolveTenant() for the full order.
  *
- * The DEMO tenant is never public: it resolves ONLY when a `demo_access` cookie
- * matching DEMO_ACCESS_TOKEN is present, which is set only by hitting
- * `/enter-demo?token=<secret>`. Nothing in the product links to it.
+ * The DEMO tenant is never public: it resolves ONLY with a `demo_access` cookie
+ * set by `/enter-demo?token=<secret>`.
  */
 
+// Deployment pin. Keep a default so the single-tenant deployment always resolves;
+// set NEXT_PUBLIC_TENANT to lock a subdomain deploy to one tenant.
 const DEFAULT_TENANT = process.env.NEXT_PUBLIC_TENANT || "villas";
-// Dev fallback so the demo is reachable locally; ALWAYS override in production.
 const DEMO_ACCESS_TOKEN = process.env.DEMO_ACCESS_TOKEN || "poolops-demo";
 
 const CUSTOM_DOMAINS: Record<string, string> = {
@@ -27,26 +24,6 @@ const CUSTOM_DOMAINS: Record<string, string> = {
 
 function hasDemoAccess(req: NextRequest): boolean {
   return req.cookies.get("demo_access")?.value === DEMO_ACCESS_TOKEN;
-}
-
-function resolveSlug(req: NextRequest): string {
-  const url = new URL(req.url);
-  const q = url.searchParams.get("tenant");
-  if (q) return q.toLowerCase();
-
-  // A visitor with a valid demo token stays in the demo until they leave.
-  if (hasDemoAccess(req)) return DEMO_TENANT_SLUG;
-
-  const host = (req.headers.get("host") || "").split(":")[0].toLowerCase();
-  if (CUSTOM_DOMAINS[host]) return CUSTOM_DOMAINS[host];
-
-  const parts = host.split(".");
-  const isPlainHost = host === "localhost" || /^(\d+\.){3}\d+$/.test(host);
-  if (!isPlainHost && parts.length >= 3 && parts[0] !== "www") {
-    const sub = parts[0];
-    if (KNOWN_TENANT_SLUGS.includes(sub) && sub !== DEMO_TENANT_SLUG) return sub;
-  }
-  return DEFAULT_TENANT;
 }
 
 export function middleware(req: NextRequest) {
@@ -64,7 +41,6 @@ export function middleware(req: NextRequest) {
       res.cookies.set("tenant", DEMO_TENANT_SLUG, { path: "/", sameSite: "lax" });
       return res;
     }
-    // Invalid/missing token → not discoverable; bounce to normal sign-in.
     const res = NextResponse.redirect(new URL("/login", req.url));
     res.cookies.delete("demo_access");
     return res;
@@ -78,17 +54,42 @@ export function middleware(req: NextRequest) {
     return res;
   }
 
-  let slug = resolveSlug(req);
-  // Never resolve the demo tenant without a valid access cookie.
+  const resolution = resolveTenant({
+    host: req.headers.get("host"),
+    pathname,
+    queryTenant: url.searchParams.get("tenant"),
+    demoAccess: hasDemoAccess(req),
+    cookieTenant: req.cookies.get("tenant")?.value ?? null,
+    envDefault: DEFAULT_TENANT,
+    customDomains: CUSTOM_DOMAINS,
+  });
+
+  let slug = resolution.slug;
+
+  // No tenant at all → neutral "unknown facility" page (never crash/blank).
+  if (!slug) {
+    return NextResponse.rewrite(new URL("/unknown-facility", req.url));
+  }
+  // The demo tenant is never resolvable without a valid access cookie.
   if (slug === DEMO_TENANT_SLUG && !hasDemoAccess(req)) slug = DEFAULT_TENANT;
+
+  // The route to gate/serve is the de-prefixed path when the tenant came from the URL.
+  const effectivePath = resolution.strippedPath ?? pathname;
 
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-tenant-slug", slug);
 
   // Server-side module gate: block routes for disabled modules.
-  if (moduleForPath(pathname) && !isPathEnabled(getTenantConfig(slug), pathname)) {
-    const dash = new URL("/dashboard", req.url);
-    const res = NextResponse.redirect(dash);
+  if (moduleForPath(effectivePath) && !isPathEnabled(getTenantConfig(slug), effectivePath)) {
+    const res = NextResponse.redirect(new URL("/dashboard", req.url));
+    res.cookies.set("tenant", slug, { path: "/", sameSite: "lax" });
+    return res;
+  }
+
+  // Path-based tenant: rewrite to strip the `/<slug>` prefix so real routes serve.
+  if (resolution.source === "path") {
+    const rewriteUrl = new URL(effectivePath + url.search, req.url);
+    const res = NextResponse.rewrite(rewriteUrl, { request: { headers: requestHeaders } });
     res.cookies.set("tenant", slug, { path: "/", sameSite: "lax" });
     return res;
   }

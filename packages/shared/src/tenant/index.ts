@@ -7,3 +7,4 @@ export * from "./presets";
 export * from "./resolve";
 export * from "./registry";
 export * from "./roles";
+export * from "./resolution";
