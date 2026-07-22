@@ -2,7 +2,7 @@
 
 > Running log you can check anytime. Newest entries at top of each section.
 
-## Current status: **Web app + native app both built and verified. Everything I can do from here is done. Remaining work is gated on YOU: (1) create a Supabase project, (2) deploy web to Vercel, (3) EAS build + store submit the native app.**
+## Current status: **BACKEND IS LIVE.** Supabase project bqhhbekmqsmfkxyzdvol resumed; schema + RLS + seed applied and verified (tables 200, seed present, RLS enforcing). Web + native apps built and verified. Next: sign in against live data, then deploy (Vercel) + EAS build.
 
 Verified this session:
 - Web: `npm test` → 39/39 · `npm run typecheck` clean · `npm run build:web` → 48/48 routes.
