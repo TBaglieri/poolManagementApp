@@ -96,7 +96,7 @@ describe("tenant config isolation (no cross-tenant bleed)", () => {
     expect(isModuleEnabled(villas, "lessons")).toBe(false);
     expect(isModuleEnabled(tidetown, "lessons")).toBe(true);
     // Role-label override on one does not appear on the other.
-    expect(villas.roleLabels.org_admin).toBe("Board");
+    expect(villas.roleLabels.org_admin).toBe("Admin / Pool Manager");
     expect(tidetown.roleLabels.org_admin).toBeUndefined();
   });
 });

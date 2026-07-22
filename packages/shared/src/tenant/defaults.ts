@@ -10,6 +10,7 @@
  */
 import type { TenantConfig } from "./schema";
 import { defaultFeatureMap, defaultSubFeatureMap } from "./modules";
+import { TENANT_ROLE_SLUGS } from "../rbac/roles";
 
 /** The app's original cyan/teal brand scale (kept verbatim for the default). */
 export const DEFAULT_BRAND_SCALE: Record<string, string> = {
@@ -73,6 +74,9 @@ export const DEFAULT_TENANT_CONFIG: TenantConfig = {
   features: defaultFeatureMap(),
   subFeatures: defaultSubFeatureMap(),
   roleLabels: {},
+  // By default a tenant can use the whole role hierarchy; a tenant enables the
+  // subset it needs (e.g. Villas runs just Admin/Pool Manager + Lifeguard).
+  activeRoles: [...TENANT_ROLE_SLUGS],
   operations: {
     poolHours: "6:00 AM – 8:00 PM",
     seasonStart: "05-15",

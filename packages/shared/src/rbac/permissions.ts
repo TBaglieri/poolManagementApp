@@ -179,6 +179,12 @@ export const ROLE_PERMISSIONS: Record<RoleSlug, PermissionKey[]> = {
     "chat.view",
     "checklists.view", "checklists.complete",
     "maintenance.report",
+    // Front-line guards test and log water chemistry on deck (see brief §4/§6:
+    // "a lifeguard is logging chlorine on a phone in bright sun") and file
+    // end-of-shift / incident reports. This is a base-product capability, not a
+    // per-tenant special case.
+    "chemicals.view", "chemicals.log",
+    "shiftreports.view", "shiftreports.submit",
   ],
 
   swim_instructor: [

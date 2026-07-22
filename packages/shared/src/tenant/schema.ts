@@ -97,6 +97,8 @@ export const TenantConfigSchema = z.object({
   subFeatures: z.record(z.string(), z.boolean()),
   /** roleSlug → custom display label. */
   roleLabels: z.record(z.string(), z.string()),
+  /** Which base roles this tenant enables (super_admin is always available to the platform owner). */
+  activeRoles: z.array(z.string()).min(1),
   operations: OperationsSchema,
 });
 

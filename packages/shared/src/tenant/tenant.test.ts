@@ -6,7 +6,7 @@ import {
 import { resolveTenantConfig, safeResolveTenantConfig, deepMerge, resolveThemeVars } from "./resolve";
 import { getTenantConfig, isKnownTenant } from "./registry";
 import { isModuleEnabled, isFeatureEnabled, isPathEnabled } from "./flags";
-import { resolveRoleShortLabel } from "./roles";
+import { resolveRoleShortLabel, isRoleActive, activeRoleList } from "./roles";
 import { HUDSON_THEME, THEME_PRESETS } from "./presets";
 import { DEFAULT_BRAND_SCALE } from "./defaults";
 
@@ -126,7 +126,7 @@ describe("feature flags", () => {
 describe("role labels + registry", () => {
   it("applies tenant role-label overrides with fallback", () => {
     const villas = getTenantConfig("villas");
-    expect(resolveRoleShortLabel(villas, "org_admin")).toBe("Board");
+    expect(resolveRoleShortLabel(villas, "org_admin")).toBe("Admin / Pool Manager");
     expect(resolveRoleShortLabel(villas, "auditor")).toBe("Auditor"); // falls back to base short name
   });
 
@@ -139,5 +139,28 @@ describe("role labels + registry", () => {
 
   it("Hudson theme is what Villas uses", () => {
     expect(getTenantConfig("villas").theme.brand).toBe(HUDSON_THEME.brand);
+  });
+});
+
+describe("per-tenant active roles", () => {
+  const villas = getTenantConfig("villas");
+  const def = getTenantConfig("default");
+
+  it("Villas runs a two-role setup (Admin/Pool Manager + Lifeguard)", () => {
+    expect(villas.activeRoles).toEqual(["org_admin", "lifeguard"]);
+    expect(isRoleActive(villas, "org_admin")).toBe(true);
+    expect(isRoleActive(villas, "lifeguard")).toBe(true);
+    expect(isRoleActive(villas, "payroll_team")).toBe(false);
+    expect(isRoleActive(villas, "swim_instructor")).toBe(false);
+    expect(activeRoleList(villas).map((r) => r.slug)).toEqual(["org_admin", "lifeguard"]);
+  });
+
+  it("the default tenant keeps the full hierarchy available", () => {
+    expect(def.activeRoles.length).toBeGreaterThanOrEqual(10);
+    expect(isRoleActive(def, "payroll_team")).toBe(true);
+  });
+
+  it("super_admin (platform owner) is always active regardless of tenant", () => {
+    expect(isRoleActive(villas, "super_admin")).toBe(true);
   });
 });

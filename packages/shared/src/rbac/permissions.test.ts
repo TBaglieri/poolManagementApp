@@ -39,11 +39,15 @@ describe("admin wildcards", () => {
 });
 
 describe("least privilege — lifeguard (lowest operational role)", () => {
-  const allowed: PermissionKey[] = ["schedule.self", "timeclock.self", "chat.view", "checklists.complete", "maintenance.report"];
+  // Guards log water chemistry + file incident/shift reports on deck (brief §4/§6).
+  const allowed: PermissionKey[] = [
+    "schedule.self", "timeclock.self", "chat.view", "checklists.complete", "maintenance.report",
+    "chemicals.log", "chemicals.view", "shiftreports.submit",
+  ];
   const forbidden: PermissionKey[] = [
     "staff.manage", "staff.invite", "schedule.manage", "schedule.approve",
     "payroll.view", "payroll.export", "permissions.manage", "roles.manage",
-    "platform.manage", "settings.manage", "chemicals.log", "facilities.manage",
+    "platform.manage", "settings.manage", "facilities.manage", "maintenance.manage",
   ];
 
   it.each(allowed)("CAN %s", (p) => expect(can("lifeguard", p)).toBe(true));

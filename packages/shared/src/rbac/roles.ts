@@ -117,6 +117,12 @@ export const ROLES: Record<RoleSlug, Role> = {
 
 export const ROLE_LIST: Role[] = Object.values(ROLES).sort((a, b) => b.level - a.level);
 
+/** Every role slug in the base product (platform owner included). */
+export const ALL_ROLE_SLUGS = Object.keys(ROLES) as RoleSlug[];
+
+/** Tenant-selectable role slugs (excludes the platform-level super_admin). */
+export const TENANT_ROLE_SLUGS = ALL_ROLE_SLUGS.filter((s) => s !== "super_admin");
+
 export function getRole(slug: RoleSlug): Role {
   return ROLES[slug];
 }

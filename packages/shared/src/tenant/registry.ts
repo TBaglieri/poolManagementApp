@@ -59,13 +59,13 @@ export const TENANT_INPUTS: Record<string, TenantConfigInput> = {
     },
     // A small community pool: no swim-lessons program, no cross-facility network.
     features: { lessons: false, community: false },
+    // Villas runs a stripped-down TWO-role setup: an all-access Admin/Pool Manager
+    // and individual Lifeguards. The full hierarchy stays available in the base
+    // product — switch it on for a larger facility via config, no new code.
+    activeRoles: ["org_admin", "lifeguard"],
     roleLabels: {
-      org_admin: "Board",
-      ops_manager: "Pool Manager",
-      hr_coordinator: "Membership",
-      head_lifeguard: "Head Guard",
+      org_admin: "Admin / Pool Manager",
       lifeguard: "Lifeguard",
-      maintenance: "Maintenance",
     },
     operations: {
       poolHours: "9:00 AM – 8:00 PM",
