@@ -3,22 +3,31 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogOut, ChevronRight } from "lucide-react";
-import { NAV_SECTIONS, organization, ORG_TYPE_LABELS } from "@poolops/shared";
+import { NAV_SECTIONS, isModuleEnabled, moduleForPath } from "@poolops/shared";
 import { useAccess } from "@/lib/access";
 import { useSession } from "@/lib/session";
-import { Logo } from "@/components/brand";
+import { useTenantConfig, useRoleShortLabel } from "@/lib/tenant/provider";
+import { TenantWordmark } from "@/components/theme/tenant-brand";
 import { Icon } from "@/components/ui/icon";
 import { StaffAvatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/cn";
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
-  const { canAny, staff, roleMeta } = useAccess();
+  const { canAny, staff, role } = useAccess();
+  const config = useTenantConfig();
+  const roleLabel = useRoleShortLabel(role);
   const logout = useSession((s) => s.logout);
 
+  // Filter by BOTH permission and whether the owning module is enabled for the tenant.
   const sections = NAV_SECTIONS.map((s) => ({
     ...s,
-    items: s.items.filter((i) => i.anyOf.length === 0 || canAny(i.anyOf)),
+    items: s.items.filter((i) => {
+      const permitted = i.anyOf.length === 0 || canAny(i.anyOf);
+      const mod = moduleForPath(i.href);
+      const moduleOn = mod ? isModuleEnabled(config, mod.id) : true;
+      return permitted && moduleOn;
+    }),
   })).filter((s) => s.items.length > 0);
 
   return (
@@ -26,7 +35,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       {/* Header */}
       <div className="flex items-center gap-2.5 border-b border-white/10 px-4 py-4">
         <Link href="/dashboard" onClick={onNavigate} className="min-w-0">
-          <Logo mono subtitle={`${organization.name} · ${ORG_TYPE_LABELS[organization.type]}`} />
+          <TenantWordmark mono showType />
         </Link>
       </div>
 
@@ -67,7 +76,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             <StaffAvatar name={`${staff.firstName} ${staff.lastName}`} color={staff.avatarColor} size="sm" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-white">{staff.firstName} {staff.lastName}</p>
-              <p className="truncate text-xs text-white/45">{roleMeta?.shortName}</p>
+              <p className="truncate text-xs text-white/45">{roleLabel}</p>
             </div>
             <Link href="/login" onClick={() => { logout(); onNavigate?.(); }} className="rounded-md p-1.5 text-white/40 hover:bg-white/10 hover:text-white" title="Sign out">
               <LogOut className="h-4 w-4" />

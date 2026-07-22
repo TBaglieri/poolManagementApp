@@ -10,7 +10,8 @@
     "./types": "./src/types/index.ts",
     "./data": "./src/data/index.ts",
     "./rbac": "./src/rbac/index.ts",
-    "./utils": "./src/utils/index.ts"
+    "./utils": "./src/utils/index.ts",
+    "./tenant": "./src/tenant/index.ts"
   },
   "sideEffects": false,
   "dependencies": {

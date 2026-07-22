@@ -1,26 +1,32 @@
 import type { Config } from "tailwindcss";
 
+/**
+ * Brand palettes are driven by CSS custom properties injected per-tenant at the
+ * app root (see @/components/theme/theme-injector). Components keep using
+ * `bg-brand-500`, `text-navy-900`, etc. unchanged — those now resolve to the
+ * active tenant's theme. Default variable values live in globals.css and equal
+ * the app's original palette, so with no tenant override nothing changes visually.
+ */
+const STOPS = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950] as const;
+
+function tokenScale(name: string): Record<string, string> {
+  return Object.fromEntries(
+    STOPS.map((s) => [String(s), `rgb(var(--${name}-${s}) / <alpha-value>)`]),
+  );
+}
+
 const config: Config = {
   darkMode: "class",
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        // Aquatic brand — cyan/teal family
-        brand: {
-          50: "#ECFEFF", 100: "#CFFAFE", 200: "#A5F3FC", 300: "#67E8F9",
-          400: "#22D3EE", 500: "#06B6D4", 600: "#0891B2", 700: "#0E7490",
-          800: "#155E75", 900: "#164E63", 950: "#083344",
-        },
-        navy: {
-          50: "#eef3f8", 100: "#d6e1ee", 200: "#aec3dc", 300: "#7f9ec5",
-          400: "#5076a8", 500: "#345a8c", 600: "#284872", 700: "#223c5e",
-          800: "#16273d", 900: "#0f1d2e", 950: "#0a1521",
-        },
+        brand: tokenScale("brand"),
+        navy: tokenScale("navy"),
       },
       fontFamily: {
         sans: [
-          "Inter", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto",
+          "var(--font-brand)", "Inter", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto",
           "Helvetica Neue", "Arial", "sans-serif",
         ],
       },
@@ -30,8 +36,9 @@ const config: Config = {
         lift: "0 12px 32px -8px rgba(8, 51, 68, 0.18)",
       },
       borderRadius: {
-        xl: "0.875rem",
-        "2xl": "1.125rem",
+        lg: "var(--radius-lg)",
+        xl: "var(--radius-xl)",
+        "2xl": "var(--radius-2xl)",
       },
       keyframes: {
         "fade-in": { from: { opacity: "0" }, to: { opacity: "1" } },
@@ -43,11 +50,24 @@ const config: Config = {
           from: { opacity: "0", transform: "translateX(16px)" },
           to: { opacity: "1", transform: "translateX(0)" },
         },
+        shimmer: {
+          "100%": { transform: "translateX(100%)" },
+        },
+        ripple: {
+          "0%": { transform: "scale(0.6)", opacity: "0.55" },
+          "100%": { transform: "scale(2.2)", opacity: "0" },
+        },
+        "waterline": {
+          "0%,100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-14%)" },
+        },
       },
       animation: {
         "fade-in": "fade-in 0.2s ease-out",
         "scale-in": "scale-in 0.18s ease-out",
         "slide-in-right": "slide-in-right 0.25s ease-out",
+        ripple: "ripple 1.8s ease-out infinite",
+        waterline: "waterline 2.4s ease-in-out infinite",
       },
     },
   },

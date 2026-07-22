@@ -4,32 +4,23 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Rocket, X } from "lucide-react";
-import { ALL_NAV_ITEMS } from "@poolops/shared";
+import { ALL_NAV_ITEMS, isModuleEnabled, moduleForPath } from "@poolops/shared";
 import { useAccess, useHydrated } from "@/lib/access";
 import { useSession } from "@/lib/session";
+import { useTenantConfig } from "@/lib/tenant/provider";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { SupabaseHydrator } from "./supabase-hydrator";
 import { RouteProgress } from "./route-progress";
 import { AccessRestricted } from "@/components/ui/permission-gate";
-import { BrandMark } from "@/components/brand";
-
-function Splash() {
-  return (
-    <div className="flex h-screen items-center justify-center bg-slate-50">
-      <div className="flex flex-col items-center gap-3">
-        <BrandMark size="lg" className="animate-pulse" />
-        <p className="text-sm font-medium text-slate-400">Loading PoolOps Pro…</p>
-      </div>
-    </div>
-  );
-}
+import { TenantSplash } from "@/components/theme/tenant-brand";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const hydrated = useHydrated();
   const { role, canAny, isDemo } = useAccess();
+  const config = useTenantConfig();
   const mode = useSession((s) => s.mode);
   const hasOrganization = useSession((s) => s.hasOrganization);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -44,16 +35,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => setMobileOpen(false), [pathname]);
 
-  if (!hydrated || !role) return <Splash />;
+  if (!hydrated || !role) return <TenantSplash />;
 
-  // UI-level route guard
+  // UI-level route guard (permission + tenant module gate; middleware also enforces server-side).
   const navMatch = ALL_NAV_ITEMS.find(
     (i) => i.href === pathname || (i.href !== "/dashboard" && pathname.startsWith(i.href)),
   );
-  const blocked = navMatch && navMatch.anyOf.length > 0 && !canAny(navMatch.anyOf);
+  const permBlocked = navMatch && navMatch.anyOf.length > 0 && !canAny(navMatch.anyOf);
+  const mod = moduleForPath(pathname);
+  const moduleBlocked = mod ? !isModuleEnabled(config, mod.id) : false;
+  const blocked = permBlocked || moduleBlocked;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50">
+    <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
       <SupabaseHydrator />
       {/* Desktop sidebar */}
       <aside className="hidden w-64 shrink-0 lg:block">
