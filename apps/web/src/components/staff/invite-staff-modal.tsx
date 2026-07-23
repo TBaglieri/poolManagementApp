@@ -2,8 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { Mail, Send, CheckCircle2, Copy, AlertTriangle, ShieldAlert } from "lucide-react";
-import { ROLE_LIST, getRole, facilities, type RoleSlug } from "@poolops/shared";
+import {
+  getRole, facilities, activeRoleList, lowestPrivilegeRole, resolveRoleShortLabel,
+  isAdminRole, type RoleSlug,
+} from "@poolops/shared";
 import { useAccess } from "@/lib/access";
+import { useTenantConfig } from "@/lib/tenant/provider";
 import { useInvites, MGMT_PERMISSION_LABELS, DEFAULT_MGMT_PERMS, type ManagementPermissions } from "@/lib/invites";
 import { Modal } from "@/components/ui/modal";
 import { Field, Input, Select } from "@/components/ui/field";
@@ -14,21 +18,25 @@ const EMPLOYMENT = ["active", "seasonal", "pending_onboarding"];
 
 export function InviteStaffModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { role, roleMeta, staffId } = useAccess();
+  const config = useTenantConfig();
   const createInvite = useInvites((s) => s.createInvite);
 
   const isAdmin = role === "org_admin" || role === "super_admin";
   const myLevel = roleMeta?.level ?? 0;
+  const defaultRole = lowestPrivilegeRole(config);
 
-  // Hierarchy: admins can assign any non-superadmin role; others only BELOW their level.
+  // Options come from THIS tenant's active roles (never hardcoded). Hierarchy:
+  // admins can assign any active non-superadmin role; others only BELOW their level.
   const assignableRoles = useMemo(
-    () => ROLE_LIST.filter((r) => r.slug !== "super_admin" && (isAdmin || r.level < myLevel)),
-    [isAdmin, myLevel],
+    () => activeRoleList(config).filter((r) => isAdmin || r.level < myLevel),
+    [config, isAdmin, myLevel],
   );
 
   const [email, setEmail] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [roleSlug, setRoleSlug] = useState<RoleSlug>("lifeguard");
+  // Default to the tenant's LEAST-privileged role (e.g. Lifeguard) — never admin.
+  const [roleSlug, setRoleSlug] = useState<RoleSlug>(defaultRole);
   const [facilityId, setFacilityId] = useState(facilities[0]?.id ?? "");
   const [phone, setPhone] = useState("");
   const [employment, setEmployment] = useState("active");
@@ -37,9 +45,12 @@ export function InviteStaffModal({ open, onClose }: { open: boolean; onClose: ()
   const [copied, setCopied] = useState(false);
 
   const reset = () => {
-    setEmail(""); setFirstName(""); setLastName(""); setRoleSlug("lifeguard");
+    setEmail(""); setFirstName(""); setLastName(""); setRoleSlug(defaultRole);
     setPhone(""); setEmployment("active"); setPerms({ ...DEFAULT_MGMT_PERMS }); setCreatedLink(null); setCopied(false);
   };
+
+  // Granting anything above the least-privileged role is a deliberate act — surface it.
+  const isElevated = roleSlug !== defaultRole && (isAdminRole(roleSlug) || (getRole(roleSlug).level > getRole(defaultRole).level));
 
   const submit = () => {
     if (!email.trim() || !firstName.trim()) return;
@@ -93,11 +104,17 @@ export function InviteStaffModal({ open, onClose }: { open: boolean; onClose: ()
             <Field label="Phone"><Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(555) 555-0123" /></Field>
             <Field label="First name" required><Input value={firstName} onChange={(e) => setFirstName(e.target.value)} /></Field>
             <Field label="Last name"><Input value={lastName} onChange={(e) => setLastName(e.target.value)} /></Field>
-            <Field label="Role"><Select value={roleSlug} onChange={(e) => setRoleSlug(e.target.value as RoleSlug)}>{assignableRoles.map((r) => <option key={r.slug} value={r.slug}>{r.name}</option>)}</Select></Field>
+            <Field label="Role"><Select value={roleSlug} onChange={(e) => setRoleSlug(e.target.value as RoleSlug)}>{assignableRoles.map((r) => <option key={r.slug} value={r.slug}>{resolveRoleShortLabel(config, r.slug)}{r.slug === defaultRole ? " (default)" : ""}</option>)}</Select></Field>
             <Field label="Home facility"><Select value={facilityId} onChange={(e) => setFacilityId(e.target.value)}>{facilities.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</Select></Field>
             <Field label="Employment status"><Select value={employment} onChange={(e) => setEmployment(e.target.value)}>{EMPLOYMENT.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}</Select></Field>
           </div>
 
+          {isElevated && (
+            <p className="flex items-start gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+              <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>You're granting <strong>{resolveRoleShortLabel(config, roleSlug)}</strong> — {isAdminRole(roleSlug) ? "full access to settings, staff, billing and all admin capabilities" : "elevated access beyond a front-line lifeguard"}. Only grant this deliberately.</span>
+            </p>
+          )}
           {!isAdmin && (
             <p className="flex items-center gap-1.5 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
               <ShieldAlert className="h-3.5 w-3.5" /> You can only assign roles within your permission level. Only organization admins can grant management permissions.

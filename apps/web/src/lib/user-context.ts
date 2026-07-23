@@ -7,7 +7,7 @@
  *
  * - Demo mode: role comes from the session role-switcher on seeded data.
  * - Real mode: user/profile/membership come from Supabase; role from
- *   organization_members (falls back to org_admin during first-run setup).
+ *   organization_members (falls back to the LEAST-privileged role, never admin).
  */
 import { getBrowserSupabase, getEffectiveDataMode } from "@poolops/supabase";
 import { resolvePermissions, type PermissionKey, type RoleSlug } from "@poolops/shared";
@@ -52,7 +52,8 @@ export async function getCurrentUserContext(): Promise<UserContext> {
   const authUser = userRes.user;
   if (!authUser) return emptyContext(dataMode);
 
-  let role: RoleSlug = (session.role as RoleSlug) ?? "org_admin";
+  // Least-privilege floor: never assume admin when a role hasn't resolved yet.
+  let role: RoleSlug = (session.role as RoleSlug) ?? "lifeguard";
   let organization: UserContext["organization"] = session.orgName ? { id: "real", name: session.orgName } : null;
   let profile: UserContext["profile"] = null;
 

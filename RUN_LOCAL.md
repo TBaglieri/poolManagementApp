@@ -65,6 +65,18 @@ npm run link-staff-profiles -- --tenant villas
 #   Idempotent — safe to run repeatedly; flags anything it can't match for review.
 ```
 
+## 3c. Review invite roles (privilege-escalation audit)
+
+Flags accounts that are Admin but were invited as a non-admin role (the invite
+privesc bug). Report-only by default — nothing changes until you pass `--fix`, and
+even then your provisioned admin and the last admin of a tenant are never touched.
+
+```bash
+npm run review-invite-roles                 # report only — prints what looks wrong
+npm run review-invite-roles -- --tenant villas
+npm run review-invite-roles -- --fix        # demote ONLY the flagged mismatches
+```
+
 ## 4. Run the tests
 
 ```bash

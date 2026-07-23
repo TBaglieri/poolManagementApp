@@ -19,6 +19,7 @@
     "seed:villas": "tsx scripts/seed-villas.ts",
     "create-admin": "tsx scripts/create-admin.ts",
     "link-staff-profiles": "tsx scripts/link-staff-profiles.ts",
+    "review-invite-roles": "tsx scripts/review-invite-roles.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test"

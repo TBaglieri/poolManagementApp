@@ -15,6 +15,7 @@ import { Badge, StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field, Textarea, Select } from "@/components/ui/field";
 import { InviteStaffModal } from "@/components/staff/invite-staff-modal";
+import { cn } from "@/lib/cn";
 
 function inviteLink(token: string): string {
   const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -37,6 +38,27 @@ export default function UsersPage() {
   const [deactivated, setDeactivated] = useState<Record<string, boolean>>({});
   const [copied, setCopied] = useState<string | null>(null);
   const [resetSent, setResetSent] = useState<Record<string, boolean>>({});
+  const [rowBusy, setRowBusy] = useState<Record<string, boolean>>({});
+  const [roleMsg, setRoleMsg] = useState<Record<string, string>>({});
+
+  // Change a member's role (server-enforced: admin-only, tenant-scoped, last-admin
+  // guarded, audited). The row's id is the member's profile id in supabase mode.
+  const changeRole = async (profileId: string, role: string) => {
+    setRowBusy((b) => ({ ...b, [profileId]: true })); setRoleMsg((m) => ({ ...m, [profileId]: "" }));
+    try {
+      const res = await fetch("/api/admin/set-role", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ profileId, role }) });
+      const json = await res.json();
+      setRoleMsg((m) => ({ ...m, [profileId]: json.ok ? "Saved" : (json.error || "Failed") }));
+    } catch { setRoleMsg((m) => ({ ...m, [profileId]: "Network error" })); }
+    finally { setRowBusy((b) => ({ ...b, [profileId]: false })); }
+  };
+
+  const toggleActive = async (profileId: string, deactivate: boolean) => {
+    setDeactivated((d) => ({ ...d, [profileId]: deactivate }));
+    try {
+      await fetch("/api/admin/set-role", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ profileId, deactivate }) });
+    } catch { /* optimistic; server enforces on next request */ }
+  };
 
   const canManage = can("staff.invite") || can("staff.manage");
   const roles = activeRoleList(config);
@@ -157,7 +179,12 @@ export default function UsersPage() {
                         <div><p className="font-medium text-slate-800 dark:text-slate-200">{u.firstName} {u.lastName}</p><p className="text-xs text-slate-400">{u.email}</p></div>
                       </div>
                     </td>
-                    <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300">{resolveRoleShortLabel(config, u.primaryRole)}</td>
+                    <td className="px-3 py-2.5">
+                      <Select value={u.primaryRole} disabled={rowBusy[u.id]} onChange={(e) => changeRole(u.id, e.target.value)} className="text-xs">
+                        {roles.map((r) => <option key={r.slug} value={r.slug}>{resolveRoleShortLabel(config, r.slug)}</option>)}
+                      </Select>
+                      {roleMsg[u.id] && <p className={cn("mt-0.5 text-[11px]", roleMsg[u.id] === "Saved" ? "text-emerald-600" : "text-rose-600")}>{roleMsg[u.id]}</p>}
+                    </td>
                     <td className="px-3 py-2.5 text-center"><StatusBadge label={off ? "Deactivated" : "Active"} intent={off ? "neutral" : "success"} /></td>
                     <td className="px-3 py-2.5 text-right whitespace-nowrap">
                       {resetSent[u.id] ? (
@@ -166,9 +193,9 @@ export default function UsersPage() {
                         <button onClick={() => setResetSent((r) => ({ ...r, [u.id]: true }))} className="mr-1 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" title="Send password reset"><KeyRound className="h-3.5 w-3.5" /> Reset</button>
                       )}
                       {off ? (
-                        <button onClick={() => setDeactivated((d) => ({ ...d, [u.id]: false }))} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-50"><RotateCcw className="h-3.5 w-3.5" /> Reactivate</button>
+                        <button onClick={() => toggleActive(u.id, false)} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-50"><RotateCcw className="h-3.5 w-3.5" /> Reactivate</button>
                       ) : (
-                        <button onClick={() => setDeactivated((d) => ({ ...d, [u.id]: true }))} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-rose-500 hover:bg-rose-50"><Ban className="h-3.5 w-3.5" /> Deactivate</button>
+                        <button onClick={() => toggleActive(u.id, true)} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-rose-500 hover:bg-rose-50"><Ban className="h-3.5 w-3.5" /> Deactivate</button>
                       )}
                     </td>
                   </tr>

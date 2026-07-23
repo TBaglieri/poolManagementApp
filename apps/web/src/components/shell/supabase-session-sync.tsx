@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { getBrowserSupabase, getEffectiveDataMode } from "@poolops/supabase";
-import { isDemoTenant } from "@poolops/shared";
+import { isDemoTenant, resolveAssignedRole } from "@poolops/shared";
 import { useTenantConfig } from "@/lib/tenant/provider";
 import { useSession } from "@/lib/session";
 import { resolveUserTenant } from "@/lib/tenant/user-tenant";
@@ -42,7 +42,8 @@ export function SupabaseSessionSync() {
         if (!active) return;
         useSession.getState().applyRealSession({
           email: user.email ?? "",
-          role: ut.role ?? "org_admin",
+          // Never escalate on a missing role — fall back to the tenant's lowest privilege.
+          role: resolveAssignedRole(config, ut.role),
           userName: ut.firstName ?? (user.email ? user.email.split("@")[0] : ""),
           staffProfileId: ut.staffId,
           staffLinked: ut.staffLinked === true,

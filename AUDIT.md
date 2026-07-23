@@ -337,6 +337,38 @@ Marcus Reyes — with no "Local demo" chrome; sign-out / missing session redirec
 login. (Requires the deployment to carry the Supabase env vars so it runs in supabase
 mode; with them present no `NEXT_PUBLIC_DATA_MODE` flag is needed anymore.)
 
+## 4h. Why invited users became Admin (privilege escalation) + the fix
+
+**Root cause.** The invite forms already defaulted to Lifeguard, but the identity code
+**fell back to the HIGHEST role** whenever a membership role failed to resolve:
+`login/page.tsx`, `supabase-session-sync.tsx`, and `user-context.ts` all did
+`role ?? "org_admin"`. So any account whose `organization_members` role didn't resolve
+(e.g. the accept route hadn't created the membership, or resolution briefly returned
+null) was rendered — and treated by client RBAC — as an **admin**. A missing/ambiguous
+role must fall back to the LOWEST privilege, never the highest.
+
+**The fix.**
+- **Least-privilege resolution** (`packages/shared/src/tenant/roles.ts`):
+  `lowestPrivilegeRole(config)` (the min-`level` active role — Lifeguard for Villas) and
+  `resolveAssignedRole(config, requested)` (honor an explicitly-chosen active role;
+  otherwise fall to the lowest; `super_admin` is never tenant-assignable). Every
+  `?? "org_admin"` fallback now uses these (or `"lifeguard"` as the universal floor).
+- **Invite UI** (`invite-staff-modal.tsx`): the Role field is pre-selected to the
+  tenant's lowest role, labelled "… (default)", lists only the **tenant's active roles**
+  (not a hardcoded 12), and shows an inline warning when an elevated/admin role is
+  chosen so granting admin is deliberate. The invited role is carried through
+  invite → `/api/invite/accept` (membership `role_slug`) → session unchanged.
+- **Server-enforced role changes** (`/api/admin/set-role`): admin-only, tenant-scoped
+  (a non-admin or cross-tenant caller is rejected — no self-escalation), validates the
+  new role against the tenant's active roles, **blocks demoting/deactivating the last
+  admin**, and writes an `audit_logs` entry (actor, target, from→to). RLS reads
+  membership live, so a demotion takes effect on the target's next request. Wired into
+  Users & Access (per-member role selector + deactivate).
+- **Data review** (`scripts/review-invite-roles.ts`, `npm run review-invite-roles`):
+  report-only by default — flags accounts that are admin but whose accepted invitation
+  asked for a non-admin role; `--fix` demotes ONLY those, never a provisioned admin and
+  never the last admin. Your own admin account is never touched.
+
 ## 5. Known pre-existing gaps (not introduced here, noted for honesty)
 
 - Authorization is UI-level in the app; RLS is the real boundary. This work does not change auth/RLS (per the "don't push destructive/auth changes while away" rule).
