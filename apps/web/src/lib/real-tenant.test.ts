@@ -28,6 +28,14 @@ describe("real tenant starts empty (no demo leak)", () => {
     useDemo.getState().removeChecklistTemplate(id);
     expect(useDemo.getState().checklistTemplates).toEqual([]);
   });
+
+  it("a filed shift report can be created and reviewed", () => {
+    useDemo.setState({ reports: [] });
+    useDemo.getState().addReport({ facilityId: "f1", staffId: "s1", shiftLabel: "AM", date: "2026-07-23", weather: "", staffingNotes: "", incidents: "", maintenanceConcerns: "", patronIssues: "", suppliesNeeded: "", reviewStatus: "submitted" });
+    const id = useDemo.getState().reports[0].id;
+    useDemo.getState().setReportStatus(id, "reviewed");
+    expect(useDemo.getState().reports[0].reviewStatus).toBe("reviewed");
+  });
 });
 
 describe("reading cadence is a per-tenant setting, not a hardcoded default", () => {

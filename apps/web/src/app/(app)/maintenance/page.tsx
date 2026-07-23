@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { Wrench, ImageIcon, Calendar, MapPin } from "lucide-react";
 import {
-  facilities, staff as seedStaff, getStaff, staffName, facilityName, formatShortDate,
+  getStaff, staffName, facilityName, formatShortDate,
   ISSUE_STATUS_LABELS, type IssueStatus, type MaintenanceIssue, type IssuePriority,
 } from "@poolops/shared";
-import { useAccess } from "@/lib/access";
+import { useAccess, useMyStaffId } from "@/lib/access";
 import { useDemo } from "@/lib/store";
+import { useTenantSeed } from "@/lib/tenant-data";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge } from "@/components/ui/badge";
@@ -22,17 +23,20 @@ const COLUMNS: IssueStatus[] = ["new", "in_progress", "waiting_parts", "resolved
 const COL_ACCENT: Record<IssueStatus, string> = {
   new: "border-t-sky-400", in_progress: "border-t-brand-500", waiting_parts: "border-t-amber-400", resolved: "border-t-emerald-500",
 };
-const maintStaff = seedStaff.filter((s) => s.primaryRole === "maintenance" || s.roles.includes("maintenance"));
-
 export default function MaintenancePage() {
   const { can, staff: me, facilityId } = useAccess();
+  const myStaffId = useMyStaffId();
+  const { facilities, staff } = useTenantSeed();
+  // Assignable maintenance staff come from THIS tenant's roster (empty for a fresh
+  // real tenant — never demo staff).
+  const maintStaff = staff.filter((s) => s.primaryRole === "maintenance" || s.roles.includes("maintenance"));
   const issues = useDemo((s) => s.issues);
   const addIssue = useDemo((s) => s.addIssue);
   const setStatus = useDemo((s) => s.setIssueStatus);
   const assign = useDemo((s) => s.assignIssue);
 
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ facilityId: facilities[0].id, area: "", title: "", description: "", priority: "medium" as IssuePriority });
+  const [form, setForm] = useState({ facilityId: facilities[0]?.id ?? "", area: "", title: "", description: "", priority: "medium" as IssuePriority });
 
   const facMatch = (fid: string) => facilityId === "all" || fid === facilityId;
   const visible = issues.filter((i) => facMatch(i.facilityId));
@@ -42,10 +46,10 @@ export default function MaintenancePage() {
     if (!form.title.trim()) return;
     addIssue({
       facilityId: form.facilityId, area: form.area || "General", title: form.title, description: form.description,
-      priority: form.priority, status: "new", reportedBy: me?.id ?? "staff_head1", assignedTo: null, hasPhoto: false,
+      priority: form.priority, status: "new", reportedBy: myStaffId ?? me?.id ?? "staff", assignedTo: null, hasPhoto: false,
     });
     setOpen(false);
-    setForm({ facilityId: facilities[0].id, area: "", title: "", description: "", priority: "medium" });
+    setForm({ facilityId: facilities[0]?.id ?? "", area: "", title: "", description: "", priority: "medium" });
   };
 
   return (
@@ -72,7 +76,7 @@ export default function MaintenancePage() {
               </div>
               <div className="space-y-2.5 px-2.5 pb-3">
                 {colIssues.map((issue) => (
-                  <IssueCard key={issue.id} issue={issue} canManage={canManage}
+                  <IssueCard key={issue.id} issue={issue} canManage={canManage} assignable={maintStaff}
                     onStatus={(s) => setStatus(issue.id, s)} onAssign={(sid) => assign(issue.id, sid)} />
                 ))}
                 {colIssues.length === 0 && <p className="py-6 text-center text-xs text-slate-300">No issues</p>}
@@ -101,8 +105,8 @@ export default function MaintenancePage() {
   );
 }
 
-function IssueCard({ issue, canManage, onStatus, onAssign }: {
-  issue: MaintenanceIssue; canManage: boolean;
+function IssueCard({ issue, canManage, assignable, onStatus, onAssign }: {
+  issue: MaintenanceIssue; canManage: boolean; assignable: { id: string; firstName: string; lastName: string }[];
   onStatus: (s: IssueStatus) => void; onAssign: (sid: string) => void;
 }) {
   const assignee = getStaff(issue.assignedTo);
@@ -131,7 +135,7 @@ function IssueCard({ issue, canManage, onStatus, onAssign }: {
       {canManage && !issue.assignedTo && (
         <Select onChange={(e) => e.target.value && onAssign(e.target.value)} className="mt-2 w-full !py-1 !text-xs" defaultValue="">
           <option value="" disabled>Assign to…</option>
-          {maintStaff.map((s) => <option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>)}
+          {assignable.map((s) => <option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>)}
         </Select>
       )}
     </div>

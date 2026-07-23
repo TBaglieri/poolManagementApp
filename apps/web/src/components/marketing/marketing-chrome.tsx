@@ -26,16 +26,16 @@ export function MarketingHeader() {
 export function MarketingFooter() {
   const cols: { title: string; links: { label: string; href: string }[] }[] = [
     { title: "Product", links: [
-      { label: "Features", href: "/#features" }, { label: "Pricing", href: "/pricing" },
-      { label: "Request a quote", href: "/quote" }, { label: "Sign in", href: "/login" },
+      { label: "Features", href: "/#features" }, { label: "Web &amp; mobile", href: "/#platforms" },
+      { label: "Pricing", href: "/pricing" }, { label: "Sign in", href: "/login" },
     ]},
-    { title: "Operations", links: [
-      { label: "Scheduling", href: "/login" }, { label: "Chemical logs", href: "/login" },
-      { label: "Certifications", href: "/login" }, { label: "Payroll exports", href: "/login" },
+    { title: "Solutions", links: [
+      { label: "Community pools", href: "/#features" }, { label: "Swim clubs", href: "/#features" },
+      { label: "Camps &amp; schools", href: "/#features" }, { label: "Aquatic centers", href: "/#features" },
     ]},
     { title: "Company", links: [
-      { label: "Setup &amp; onboarding", href: "/setup" }, { label: "Mobile app", href: "/m/home" },
-      { label: "Security", href: "/login" }, { label: "Contact sales", href: "/quote" },
+      { label: "Pricing", href: "/pricing" }, { label: "Request a quote", href: "/quote" },
+      { label: "Contact sales", href: "/quote" }, { label: "Sign in", href: "/login" },
     ]},
   ];
   return (

@@ -1789,3 +1789,55 @@ returns uuid language sql stable security definer set search_path = public as $$
 $$;
 
 -- <<<<<<<<<<<<<<<<<<<< END staff-auth-link.sql <<<<<<<<<<<<<<<<<<<<
+
+-- >>>>>>>>>>>>>>>>>>>> BEGIN chem-taken-at.sql >>>>>>>>>>>>>>>>>>>>
+alter table public.chemical_logs add column if not exists taken_at timestamptz;
+update public.chemical_logs set taken_at = created_at where taken_at is null;
+alter table public.chemical_logs alter column taken_at set default now();
+create index if not exists idx_chem_taken_at on public.chemical_logs(facility_id, taken_at);
+-- <<<<<<<<<<<<<<<<<<<< END chem-taken-at.sql <<<<<<<<<<<<<<<<<<<<
+
+-- >>>>>>>>>>>>>>>>>>>> BEGIN shift-reports-rls.sql >>>>>>>>>>>>>>>>>>>>
+alter table public.shift_reports enable row level security;
+drop policy if exists shiftreports_select on public.shift_reports;
+create policy shiftreports_select on public.shift_reports for select
+  using (organization_id = public.current_org_id()
+         and (staff_id = public.current_staff_id()
+              or public.has_role('super_admin','org_admin','ops_manager','lifeguard_manager','scheduling_manager')));
+drop policy if exists shiftreports_insert on public.shift_reports;
+create policy shiftreports_insert on public.shift_reports for insert
+  with check (organization_id = public.current_org_id() and staff_id = public.current_staff_id());
+drop policy if exists shiftreports_update on public.shift_reports;
+create policy shiftreports_update on public.shift_reports for update
+  using (organization_id = public.current_org_id()
+         and (staff_id = public.current_staff_id()
+              or public.has_role('super_admin','org_admin','ops_manager','lifeguard_manager')));
+drop policy if exists shiftreports_manage_delete on public.shift_reports;
+create policy shiftreports_manage_delete on public.shift_reports for delete
+  using (organization_id = public.current_org_id()
+         and public.has_role('super_admin','org_admin','ops_manager','lifeguard_manager'));
+-- <<<<<<<<<<<<<<<<<<<< END shift-reports-rls.sql <<<<<<<<<<<<<<<<<<<<
+
+-- >>>>>>>>>>>>>>>>>>>> BEGIN rls-gaps.sql >>>>>>>>>>>>>>>>>>>>
+do $$
+declare t text;
+begin
+  foreach t in array array['pay_periods','payroll_reviews','payroll_exports']
+  loop
+    execute format('alter table public.%I enable row level security;', t);
+    execute format('drop policy if exists %I on public.%I;', t || '_read', t);
+    execute format(
+      'create policy %I on public.%I for select
+       using (organization_id = public.current_org_id()
+              and public.has_role(''super_admin'',''org_admin'',''payroll_team'',''ops_manager''));',
+      t || '_read', t);
+    execute format('drop policy if exists %I on public.%I;', t || '_manage', t);
+    execute format(
+      'create policy %I on public.%I for all
+       using (organization_id = public.current_org_id()
+              and public.has_role(''super_admin'',''org_admin'',''payroll_team''))
+       with check (organization_id = public.current_org_id());',
+      t || '_manage', t);
+  end loop;
+end$$;
+-- <<<<<<<<<<<<<<<<<<<< END rls-gaps.sql <<<<<<<<<<<<<<<<<<<<

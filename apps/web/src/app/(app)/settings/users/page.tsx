@@ -2,9 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { UserPlus, Users, MailCheck, RotateCcw, Ban, Send, X, Copy, Check, KeyRound } from "lucide-react";
-import { staff as seedStaff, facilities as seedFacilities, staffName, resolveRoleShortLabel, activeRoleList, type RoleSlug } from "@poolops/shared";
+import { staff as seedStaff, facilities as seedFacilities, resolveRoleShortLabel, activeRoleList, type RoleSlug } from "@poolops/shared";
 import { useAccess } from "@/lib/access";
 import { useTenantConfig } from "@/lib/tenant/provider";
+import { useOrgMembers } from "@/lib/members";
 import { useInvites, INVITE_STATUS_INTENT } from "@/lib/invites";
 import { parseBulkEmails } from "@/lib/accounts";
 import { PageHeader } from "@/components/ui/page-header";
@@ -62,6 +63,7 @@ export default function UsersPage() {
       const res = await fetch("/api/admin/set-role", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ profileId, role }) });
       const json = await res.json();
       setRoleMsg((m) => ({ ...m, [profileId]: json.ok ? "Saved" : (json.error || "Failed") }));
+      if (json.ok) reloadMembers();
     } catch { setRoleMsg((m) => ({ ...m, [profileId]: "Network error" })); }
     finally { setRowBusy((b) => ({ ...b, [profileId]: false })); }
   };
@@ -69,14 +71,18 @@ export default function UsersPage() {
   const toggleActive = async (profileId: string, deactivate: boolean) => {
     setDeactivated((d) => ({ ...d, [profileId]: deactivate }));
     try {
-      await fetch("/api/admin/set-role", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ profileId, deactivate }) });
-    } catch { /* optimistic; server enforces on next request */ }
+      const res = await fetch("/api/admin/set-role", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ profileId, deactivate }) });
+      const json = await res.json().catch(() => ({ ok: false }));
+      if (!json.ok) { setDeactivated((d) => ({ ...d, [profileId]: !deactivate })); setRoleMsg((m) => ({ ...m, [profileId]: json.error || "Failed" })); }
+      else reloadMembers();
+    } catch { setDeactivated((d) => ({ ...d, [profileId]: !deactivate })); }
   };
 
   const canManage = can("staff.invite") || can("staff.manage");
   const roles = activeRoleList(config);
   const homeFacilityId = seedFacilities[0]?.id ?? "";
-  const users = useMemo(() => seedStaff, []);
+  // Real tenant members from Supabase (or the seeded roster in demo/mock mode).
+  const { members, live: membersLive, reload: reloadMembers } = useOrgMembers();
   const pending = invites.filter((i) => i.status === "sent" || i.status === "pending");
 
   if (!canManage) return <AccessRestricted message="User management is limited to admins and managers." />;
@@ -174,43 +180,59 @@ export default function UsersPage() {
         )}
       </SectionCard>
 
-      {/* Org users — deactivate / reactivate / reset password */}
-      <SectionCard title="People" subtitle={`${users.length} members`}>
+      {/* Org members — real people (Supabase); role change / deactivate / reset. */}
+      <SectionCard title="People" subtitle={`${members.length} member${members.length === 1 ? "" : "s"}${membersLive ? "" : " · preview roster"}`}>
+        {members.length === 0 ? (
+          <p className="py-8 text-center text-sm text-slate-400">No staff onboarded yet — invite your team above.</p>
+        ) : (
         <div className="overflow-x-auto scrollbar-thin">
           <table className="w-full text-sm">
             <thead><tr className="border-b border-slate-200 dark:border-slate-800 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
               <th className="px-3 py-2">User</th><th className="px-3 py-2">Role</th><th className="px-3 py-2 text-center">Status</th><th className="px-3 py-2 text-right">Actions</th>
             </tr></thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {users.map((u) => {
-                const off = deactivated[u.id];
+              {members.map((u) => {
+                const off = deactivated[u.profileId] ?? u.status !== "active";
+                const name = `${u.firstName} ${u.lastName}`.trim() || u.email;
                 return (
-                  <tr key={u.id} className={off ? "opacity-50" : ""}>
+                  <tr key={u.profileId} className={off ? "opacity-50" : ""}>
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-2.5">
-                        <StaffAvatar name={staffName(u.id)} color={u.avatarColor} size="sm" />
-                        <div><p className="font-medium text-slate-800 dark:text-slate-200">{u.firstName} {u.lastName}</p><p className="text-xs text-slate-400">{u.email}</p></div>
+                        <StaffAvatar name={name} color={u.avatarColor ?? "#0E7490"} size="sm" />
+                        <div><p className="font-medium text-slate-800 dark:text-slate-200">{name}</p><p className="text-xs text-slate-400">{u.email}</p></div>
                       </div>
                     </td>
                     <td className="px-3 py-2.5">
-                      <Select value={u.primaryRole} disabled={rowBusy[u.id]} onChange={(e) => changeRole(u.id, e.target.value)} className="text-xs">
-                        {roles.map((r) => <option key={r.slug} value={r.slug}>{resolveRoleShortLabel(config, r.slug)}</option>)}
-                      </Select>
-                      {roleMsg[u.id] && <p className={cn("mt-0.5 text-[11px]", roleMsg[u.id] === "Saved" ? "text-emerald-600" : "text-rose-600")}>{roleMsg[u.id]}</p>}
+                      {membersLive && canManage ? (
+                        <>
+                          <Select value={u.roleSlug} disabled={rowBusy[u.profileId]} onChange={(e) => changeRole(u.profileId, e.target.value)} className="text-xs">
+                            {roles.map((r) => <option key={r.slug} value={r.slug}>{resolveRoleShortLabel(config, r.slug)}</option>)}
+                          </Select>
+                          {roleMsg[u.profileId] && <p className={cn("mt-0.5 text-[11px]", roleMsg[u.profileId] === "Saved" ? "text-emerald-600" : "text-rose-600")}>{roleMsg[u.profileId]}</p>}
+                        </>
+                      ) : (
+                        <span className="text-slate-600 dark:text-slate-300">{resolveRoleShortLabel(config, u.roleSlug)}</span>
+                      )}
                     </td>
                     <td className="px-3 py-2.5 text-center"><StatusBadge label={off ? "Deactivated" : "Active"} intent={off ? "neutral" : "success"} /></td>
                     <td className="px-3 py-2.5 text-right whitespace-nowrap">
-                      {resetLink[u.id] ? (
-                        <button onClick={() => navigator.clipboard?.writeText(resetLink[u.id])} className="mr-1 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-50" title="Copy the reset link to send manually"><Copy className="h-3.5 w-3.5" /> Copy reset link</button>
-                      ) : resetSent[u.id] ? (
-                        <span className="mr-2 text-xs text-slate-400">Generating…</span>
+                      {membersLive && canManage ? (
+                        <>
+                          {resetLink[u.profileId] ? (
+                            <button onClick={() => navigator.clipboard?.writeText(resetLink[u.profileId])} className="mr-1 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-50" title="Copy the reset link to send manually"><Copy className="h-3.5 w-3.5" /> Copy reset link</button>
+                          ) : resetSent[u.profileId] ? (
+                            <span className="mr-2 text-xs text-slate-400">Generating…</span>
+                          ) : (
+                            <button onClick={() => sendReset(u.profileId, u.email)} className="mr-1 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" title="Send password reset"><KeyRound className="h-3.5 w-3.5" /> Reset</button>
+                          )}
+                          {off ? (
+                            <button onClick={() => toggleActive(u.profileId, false)} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-50"><RotateCcw className="h-3.5 w-3.5" /> Reactivate</button>
+                          ) : (
+                            <button onClick={() => toggleActive(u.profileId, true)} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-rose-500 hover:bg-rose-50"><Ban className="h-3.5 w-3.5" /> Deactivate</button>
+                          )}
+                        </>
                       ) : (
-                        <button onClick={() => sendReset(u.id, u.email)} className="mr-1 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" title="Send password reset"><KeyRound className="h-3.5 w-3.5" /> Reset</button>
-                      )}
-                      {off ? (
-                        <button onClick={() => toggleActive(u.id, false)} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-50"><RotateCcw className="h-3.5 w-3.5" /> Reactivate</button>
-                      ) : (
-                        <button onClick={() => toggleActive(u.id, true)} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-rose-500 hover:bg-rose-50"><Ban className="h-3.5 w-3.5" /> Deactivate</button>
+                        <span className="text-xs text-slate-400">Manage in a live workspace</span>
                       )}
                     </td>
                   </tr>
@@ -219,6 +241,7 @@ export default function UsersPage() {
             </tbody>
           </table>
         </div>
+        )}
         <p className="mt-3 flex items-center gap-1.5 text-xs text-slate-400"><MailCheck className="h-3.5 w-3.5" /> Deactivating ends a person's access immediately but keeps their history (shifts, chemical logs, reports) intact and still attributed to them.</p>
       </SectionCard>
 

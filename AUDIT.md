@@ -493,6 +493,28 @@ no longer tells real users to "switch roles from the top bar" (demo-only text).
   cadence and behave correctly; a multi-facility tenant keeps "All Facilities"; a
   single-facility tenant shows its name — all with no code changes.
 
+## 4l. Consistency / polish pass (post-review fixes)
+
+- **Users & Access "People"** now lists REAL org members (`useOrgMembers` → Supabase,
+  RLS-scoped) instead of demo staff; role-change / deactivate / reset act on real
+  profile ids and re-fetch after a change. Demo/mock shows the seeded roster read-only.
+- **Shift Reports** create flow built (lifeguards file their own; filed under the real
+  staff id) and the review buttons (Mark reviewed / Flag) are wired to `setReportStatus`.
+- **Attribution sweep** — chemical readings, checklist completions, maintenance reports
+  and **time-clock** now attribute to the real linked staff id (`useMyStaffId()`); the
+  time-clock card previously never rendered for real linked staff (was gated on the demo
+  `me`) — fixed, with a fail-loud `UnlinkedStaffNotice` for unlinked accounts.
+- **Maintenance** stopped importing demo `facilities`/`staff` — uses `useTenantSeed`
+  (assignees from the tenant roster), guards empty facilities.
+- **Marketing footer** links de-placeholdered (no more everything→/login, dropped the
+  demo `/m/home` link).
+- **Login right panel** is tenant-aware — a tenant portal shows the tenant's welcome +
+  tagline; the "demo persona" testimonial only appears on the platform login.
+- **RLS gap** — `pay_periods` / `payroll_reviews` / `payroll_exports` had RLS enabled but
+  NO policies (deny-all, even for admins). Added payroll/admin-scoped policies
+  (`supabase/rls-gaps.sql`). `chem-taken-at.sql`, `shift-reports-rls.sql` and this are
+  now folded into `supabase/_run_all.sql`.
+
 ## 5. Known pre-existing gaps (not introduced here, noted for honesty)
 
 - Authorization is UI-level in the app; RLS is the real boundary. This work does not change auth/RLS (per the "don't push destructive/auth changes while away" rule).

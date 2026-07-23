@@ -195,7 +195,7 @@ export default function LoginPage() {
         <div className="relative z-10 flex flex-col justify-center px-16 text-white">
           <TenantWordmark size="lg" mono />
           <h2 className="mt-10 text-3xl font-bold leading-tight">
-            The operations layer for modern aquatics teams.
+            {tenantScoped ? config.copy.welcome : "The operations layer for modern aquatics teams."}
           </h2>
           <ul className="mt-8 space-y-4 text-white/80">
             {["Schedule coverage and approve trades in seconds",
@@ -208,9 +208,17 @@ export default function LoginPage() {
               </li>
             ))}
           </ul>
+          {/* Marketing testimonial only on the platform login — a real tenant portal
+              shows its own tagline, never a demo persona quote. */}
           <div className="mt-12 rounded-2xl border border-white/10 bg-white/5 p-5">
-            <p className="text-sm text-white/70">“PoolOps Pro replaced three spreadsheets, a group text, and a clipboard. Our guards actually use it.”</p>
-            <p className="mt-3 text-xs font-semibold text-white/50">— Aquatics Director, demo persona</p>
+            {tenantScoped ? (
+              <p className="text-sm text-white/70">{config.copy.tagline}</p>
+            ) : (
+              <>
+                <p className="text-sm text-white/70">“PoolOps Pro replaced three spreadsheets, a group text, and a clipboard. Our guards actually use it.”</p>
+                <p className="mt-3 text-xs font-semibold text-white/50">— Aquatics Director, demo persona</p>
+              </>
+            )}
           </div>
         </div>
       </div>

@@ -5,9 +5,10 @@ import { Clock, MapPin, Play, Square, AlertTriangle, Download } from "lucide-rea
 import {
   getStaff, staffName, facilityName, formatTime, formatHours, shiftDuration,
 } from "@poolops/shared";
-import { useAccess } from "@/lib/access";
+import { useAccess, useMyStaffId, useStaffProfileState } from "@/lib/access";
 import { useDemo } from "@/lib/store";
 import { useTenantSeed } from "@/lib/tenant-data";
+import { UnlinkedStaffNotice } from "@/components/shell/unlinked-staff-notice";
 import { downloadCSV } from "@/lib/csv";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
@@ -30,13 +31,16 @@ const STATUS_BADGE: Record<TimeClockEntry["status"], { label: string; intent: "s
 
 export default function TimeClockPage() {
   const { can, staff: me, facilityId } = useAccess();
+  const myStaffId = useMyStaffId();
+  const profileState = useStaffProfileState();
   const { facilities } = useTenantSeed();
   const clock = useDemo((s) => s.clock);
   const toggleClock = useDemo((s) => s.toggleClock);
   const [facility, setFacility] = useState(me?.homeFacilityId ?? facilities[0]?.id ?? "");
 
   const isManager = can("timeclock.manage");
-  const myEntry = clock.find((e) => e.staffId === me?.id && (e.status === "clocked_in" || e.status === "late"));
+  // Clock actions act as the REAL linked staff member (or demo staff in demo mode).
+  const myEntry = clock.find((e) => e.staffId === myStaffId && (e.status === "clocked_in" || e.status === "late"));
   const clockedIn = clock.filter((e) => e.status === "clocked_in" || e.status === "late");
   const missed = clock.filter((e) => e.status === "missed_in" || e.status === "missed_out");
   const facMatch = (fid: string) => facilityId === "all" || fid === facilityId;
@@ -68,8 +72,8 @@ export default function TimeClockPage() {
     ]);
   };
 
-  // Staff personal clock card
-  const ClockCard = me && (
+  // Staff personal clock card (works for real linked staff — not gated on demo `me`).
+  const ClockCard = (
     <SectionCard title="Time clock" subtitle="Clock in and out for your shift">
       <div className="flex flex-col items-center gap-4 py-4">
         <div className={cn("flex h-24 w-24 items-center justify-center rounded-full", myEntry ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400")}>
@@ -93,7 +97,7 @@ export default function TimeClockPage() {
             {facilities.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
           </Select>
         )}
-        <Button size="lg" variant={myEntry ? "danger" : "primary"} onClick={() => me && toggleClock(me.id, facility)}>
+        <Button size="lg" variant={myEntry ? "danger" : "primary"} disabled={!myStaffId || !facility} onClick={() => myStaffId && toggleClock(myStaffId, facility)}>
           {myEntry ? <><Square className="h-4 w-4" /> Clock out</> : <><Play className="h-4 w-4" /> Clock in</>}
         </Button>
         <p className="flex items-center gap-1.5 text-xs text-slate-400"><MapPin className="h-3.5 w-3.5" /> GPS / geofence verification (placeholder)</p>
@@ -105,7 +109,7 @@ export default function TimeClockPage() {
     return (
       <div className="space-y-6">
         <PageHeader title="Time Clock" subtitle="Track your shift hours." />
-        <div className="mx-auto max-w-md">{ClockCard}</div>
+        <div className="mx-auto max-w-md">{profileState === "unlinked" ? <UnlinkedStaffNotice /> : ClockCard}</div>
       </div>
     );
   }

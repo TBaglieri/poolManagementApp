@@ -101,6 +101,8 @@ interface DemoState {
   importExampleChecklists: () => void;
   addPatronCount: (facilityId: ID, timeSlot: string, count: number, by: ID) => void;
   addReport: (r: Omit<ShiftReport, "id">) => void;
+  /** Manager review of a shift report (mark reviewed / flag for follow-up). */
+  setReportStatus: (id: ID, status: ShiftReport["reviewStatus"], managerNotes?: string) => void;
   markNotificationsRead: () => void;
   setOnboardingStep: (staffId: ID, step: OnboardingStepKey, status: SubmissionStatus) => void;
   /** Replace store slices with live Supabase data (used by SupabaseHydrator). */
@@ -420,6 +422,9 @@ export const useDemo = create<DemoState>((set, get) => ({
     })),
 
   addReport: (r) => set((s) => ({ reports: [{ ...r, id: uid("sr") }, ...s.reports] })),
+
+  setReportStatus: (id, status, managerNotes) =>
+    set((s) => ({ reports: s.reports.map((r) => (r.id === id ? { ...r, reviewStatus: status, ...(managerNotes !== undefined ? { managerNotes } : {}) } : r)) })),
 
   markNotificationsRead: () =>
     set((s) => ({ notifications: s.notifications.map((n) => ({ ...n, read: true })) })),
