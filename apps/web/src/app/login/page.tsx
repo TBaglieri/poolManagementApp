@@ -11,7 +11,7 @@ import { useTenantConfig } from "@/lib/tenant/provider";
 import { allowsDemoLoginFallback } from "@/lib/demo-mode";
 import { resolveUserTenant } from "@/lib/tenant/user-tenant";
 import { signIn } from "@/lib/auth";
-import { Logo } from "@/components/brand";
+import { TenantWordmark } from "@/components/theme/tenant-brand";
 import { RoleBadge } from "@/components/ui/badge";
 
 function surfaceHref(role: RoleSlug): string {
@@ -80,7 +80,7 @@ export default function LoginPage() {
       {/* Left: form */}
       <div className="flex w-full flex-col justify-center px-6 py-10 lg:w-1/2 lg:px-16">
         <div className="mx-auto w-full max-w-md">
-          <Link href="/"><Logo size="md" /></Link>
+          <Link href="/"><TenantWordmark size="md" /></Link>
           <h1 className="mt-10 text-2xl font-bold text-slate-900">{mode === "signup" ? "Create your account" : "Welcome back"}</h1>
           <p className="mt-1.5 text-sm text-slate-500">
             {supabaseMode ? "Sign in with Supabase Auth to your aquatics workspace." : "Sign in to your aquatics operations workspace."}
@@ -181,7 +181,7 @@ export default function LoginPage() {
         <div className="absolute -right-20 top-10 h-96 w-96 rounded-full bg-brand-500/20 blur-3xl" />
         <div className="absolute -bottom-24 -left-10 h-96 w-96 rounded-full bg-cyan-500/15 blur-3xl" />
         <div className="relative z-10 flex flex-col justify-center px-16 text-white">
-          <Logo size="lg" mono />
+          <TenantWordmark size="lg" mono />
           <h2 className="mt-10 text-3xl font-bold leading-tight">
             The operations layer for modern aquatics teams.
           </h2>

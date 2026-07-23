@@ -1,8 +1,24 @@
 import { describe, it, expect } from "vitest";
-import { getTenantConfig } from "@poolops/shared";
+import { getTenantConfig, PLATFORM_CONFIG } from "@poolops/shared";
 import { tenantMetadata } from "./metadata";
 
 const ORIGIN = "https://pools.example.com";
+
+describe("platform vs tenant link previews", () => {
+  it("platform metadata is PoolOps Pro at the site root — not a tenant", () => {
+    const meta = tenantMetadata(PLATFORM_CONFIG, { origin: ORIGIN, slug: "platform" });
+    expect(meta.openGraph?.title).toBe("PoolOps Pro");
+    expect(meta.openGraph?.title).not.toBe("Villas on the Ridge");
+    expect((meta.openGraph as any)?.url).toBe(ORIGIN); // root, not /platform
+    expect((meta.openGraph as any)?.images?.[0]?.url).toBe(`${ORIGIN}/api/og/platform`);
+  });
+
+  it("a tenant URL still unfurls with the tenant's brand", () => {
+    const meta = tenantMetadata(getTenantConfig("villas"), { origin: ORIGIN, slug: "villas" });
+    expect(meta.openGraph?.title).toBe("Villas on the Ridge");
+    expect((meta.openGraph as any)?.url).toBe(`${ORIGIN}/villas`);
+  });
+});
 
 describe("tenantMetadata — per-tenant link previews", () => {
   it("resolves Open Graph + Twitter from the Villas config", () => {

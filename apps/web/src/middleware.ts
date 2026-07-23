@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { resolveTenant, getTenantConfig, isPathEnabled, moduleForPath, DEMO_TENANT_SLUG } from "@poolops/shared/tenant";
+import { resolveTenant, getTenantConfig, isPathEnabled, moduleForPath, DEMO_TENANT_SLUG, isPlatformPath, REAL_TENANT_SOURCES } from "@poolops/shared/tenant";
 
 /**
  * Tenant resolution + server-side module gating + gated-demo access.
@@ -65,6 +65,17 @@ export function middleware(req: NextRequest) {
   });
 
   let slug = resolution.slug;
+
+  // PLATFORM (non-tenant) page: no REAL tenant signal (only a cookie/env fallback,
+  // or none) AND a platform path → render the PoolOps Pro platform brand, never a
+  // tenant's. This is what stops a "last loaded tenant" cookie/default from leaking
+  // Villas onto the landing page, root login, or their metadata / OG previews.
+  if (!REAL_TENANT_SOURCES.includes(resolution.source) && isPlatformPath(pathname)) {
+    const headers = new Headers(req.headers);
+    headers.set("x-platform", "1");
+    headers.delete("x-tenant-slug");
+    return NextResponse.next({ request: { headers } });
+  }
 
   // No tenant at all → neutral "unknown facility" page (never crash/blank).
   if (!slug) {

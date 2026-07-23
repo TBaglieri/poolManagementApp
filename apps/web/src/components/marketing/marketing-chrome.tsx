@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { Logo } from "@/components/brand";
+import { TenantWordmark } from "@/components/theme/tenant-brand";
 
 export function MarketingHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <Link href="/"><Logo /></Link>
+        {/* Config-driven: PoolOps Pro on platform pages, the tenant's mark on /<tenant>. */}
+        <Link href="/"><TenantWordmark /></Link>
         <nav className="hidden items-center gap-7 text-sm font-medium text-slate-600 md:flex">
           <Link href="/#features" className="hover:text-slate-900">Features</Link>
           <Link href="/#platforms" className="hover:text-slate-900">Web &amp; Mobile</Link>

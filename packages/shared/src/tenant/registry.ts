@@ -14,6 +14,36 @@ import type { TenantConfig, TenantConfigInput } from "./schema";
 /** The app's original cyan/navy look, kept pixel-identical via explicit scales. */
 const ORIGINAL_LOOK = { brandScale: DEFAULT_BRAND_SCALE, navyScale: DEFAULT_NAVY_SCALE };
 
+/**
+ * The PLATFORM brand (PoolOps Pro) — a FIRST-CLASS config, not a tenant. It is what
+ * platform-level surfaces (landing, root login, marketing) and their metadata render,
+ * so a tenant's branding never leaks onto non-tenant pages. It is NOT in the tenant
+ * registry (can't be reached as a tenant) and no tenant can overwrite it.
+ */
+export const PLATFORM_SLUG = "platform";
+
+/** True for the reserved platform slug (never a real tenant). */
+export function isPlatformSlug(slug?: string | null): boolean {
+  return (slug ?? "").toLowerCase() === PLATFORM_SLUG;
+}
+
+/** The resolved PoolOps Pro platform config (waves mark, platform copy, base look). */
+export const PLATFORM_CONFIG: TenantConfig = resolveTenantConfig({
+  slug: PLATFORM_SLUG,
+  displayName: "PoolOps Pro",
+  legalName: "PoolOps Pro",
+  productName: "PoolOps Pro",
+  theme: ORIGINAL_LOOK,
+  branding: { monogram: "PO", icon: "inline:waves" },
+  copy: {
+    tagline: "The operations layer for modern aquatics teams.",
+    welcome: "Welcome to PoolOps Pro.",
+    rules: "",
+    emailFooter: "Sent by PoolOps Pro.",
+    notificationSender: "PoolOps Pro",
+  },
+});
+
 export const TENANT_INPUTS: Record<string, TenantConfigInput> = {
   // Platform default / base look (the app's original cyan/navy).
   default: { slug: "default", displayName: "PoolOps Pro", theme: ORIGINAL_LOOK },

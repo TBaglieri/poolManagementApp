@@ -1,5 +1,5 @@
 import { ImageResponse } from "next/og";
-import { getTenantConfig, inlineIconId, INLINE_ICONS } from "@poolops/shared";
+import { getTenantConfig, isPlatformSlug, PLATFORM_CONFIG, inlineIconId, INLINE_ICONS } from "@poolops/shared";
 import { brandHex } from "@/lib/tenant/theme-css";
 
 /**
@@ -13,7 +13,7 @@ import { brandHex } from "@/lib/tenant/theme-css";
 export const runtime = "nodejs";
 
 export async function GET(_req: Request, { params }: { params: { slug: string } }) {
-  const config = getTenantConfig(params.slug);
+  const config = isPlatformSlug(params.slug) ? PLATFORM_CONFIG : getTenantConfig(params.slug);
   const brand = brandHex(config, 700);
   const brandLight = brandHex(config, 600);
   const inline = inlineIconId(config.branding.icon);

@@ -16,6 +16,16 @@ export interface InlineIcon {
 }
 
 export const INLINE_ICONS: Record<string, InlineIcon> = {
+  // PoolOps Pro (the PLATFORM brand) — three water waves.
+  waves: {
+    viewBox: "0 0 24 24",
+    paths: [
+      "M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1",
+      "M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1",
+      "M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1",
+    ],
+  },
+
   // Villas on the Ridge — a row of three gabled townhouses on a ridge (line art).
   houses: {
     viewBox: "0 0 64 44",

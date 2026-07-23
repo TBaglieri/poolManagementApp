@@ -22,7 +22,7 @@ type Size = keyof typeof SIZES;
 
 /** The tenant's icon-only mark (no wordmark). Inline SVG, raster/vector URL, or a
  *  monogram tile — all in the tenant's brand color. Used for the home button. */
-export function TenantMark({ size = "md", className }: { size?: Size; className?: string }) {
+export function TenantMark({ size = "md", className, mono = false }: { size?: Size; className?: string; mono?: boolean }) {
   const config = useTenantConfig();
   const s = SIZES[size];
   const icon = config.branding.icon;
@@ -52,6 +52,12 @@ export function TenantMark({ size = "md", className }: { size?: Size; className?
   const iconUrl = icon && !icon.startsWith("inline:") ? icon : undefined;
   if (iconUrl) {
     const iconDark = config.branding.iconDark;
+    // On a forced-dark surface (mono, e.g. the navy login panel), use the light
+    // cutout so a dark line-art mark stays legible.
+    if (mono && iconDark) {
+      // eslint-disable-next-line @next/next/no-img-element
+      return <img src={iconDark} alt={`${config.displayName} logo`} className={cn("object-contain", s.box, className)} />;
+    }
     return (
       <span className={cn("relative inline-flex shrink-0 items-center justify-center", s.box, className)}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -97,7 +103,7 @@ export function TenantWordmark({
   const s = SIZES[size];
   return (
     <span className={cn("inline-flex items-center gap-2.5", className)}>
-      <TenantMark size={size} />
+      <TenantMark size={size} mono={mono} />
       <span className="flex min-w-0 flex-col leading-none">
         <span className={cn("truncate font-bold tracking-tight", s.text, mono ? "text-white" : "text-slate-900")}>
           {config.displayName}

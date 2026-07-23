@@ -1,7 +1,7 @@
 import "server-only";
 import { headers, cookies } from "next/headers";
 import {
-  getTenantConfig, TenantConfigSchema, deepMerge, type TenantConfig,
+  getTenantConfig, TenantConfigSchema, deepMerge, PLATFORM_CONFIG, PLATFORM_SLUG, type TenantConfig,
 } from "@poolops/shared";
 import { getEffectiveDataMode } from "@poolops/supabase";
 import { getServerSupabase } from "@poolops/supabase/server";
@@ -9,8 +9,14 @@ import { getServerSupabase } from "@poolops/supabase/server";
 /** Deployment default tenant. For this trial it's the customer, Villas on the Ridge. */
 export const DEFAULT_TENANT_SLUG = process.env.NEXT_PUBLIC_TENANT || "villas";
 
+/** True when the middleware marked this request as a PLATFORM (non-tenant) page. */
+export function isPlatformRequest(): boolean {
+  return headers().get("x-platform") === "1";
+}
+
 /** Active tenant slug for the current request (set by middleware; cookie fallback). */
 export function getTenantSlug(): string {
+  if (isPlatformRequest()) return PLATFORM_SLUG;
   const fromHeader = headers().get("x-tenant-slug");
   if (fromHeader) return fromHeader;
   const fromCookie = cookies().get("tenant")?.value;
@@ -32,6 +38,9 @@ function hasSupabaseSession(): boolean {
  * falls back to the registry, so the app always renders.
  */
 export async function getServerTenantConfig(): Promise<TenantConfig> {
+  // Platform (non-tenant) pages always render the PoolOps Pro brand.
+  if (isPlatformRequest()) return PLATFORM_CONFIG;
+
   const slug = getTenantSlug();
   const base = getTenantConfig(slug);
 

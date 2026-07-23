@@ -369,6 +369,38 @@ role must fall back to the LOWEST privilege, never the highest.
   asked for a non-admin role; `--fix` demotes ONLY those, never a provisioned admin and
   never the last admin. Your own admin account is never touched.
 
+## 4i. Why tenant branding leaked onto platform pages + the fix
+
+**Root cause.** `resolveTenant` (and `getTenantSlug`) fell back to the `env` deploy
+default (`NEXT_PUBLIC_TENANT=villas`) — and a `tenant` cookie — on **every** route.
+So platform pages (`/`, root `/login`, marketing) had no "no-tenant" state: they
+resolved Villas via the fallback, and the config-driven **metadata** (tab title,
+favicon, and the OG card that unfurls when the site URL is shared) rendered "Villas
+on the Ridge" instead of PoolOps Pro. Branding was decided by the "last loaded /
+default tenant," not by whether the route is actually tenant-scoped.
+
+**The fix (generic — no Villas special-casing).**
+- **First-class platform brand.** `PLATFORM_CONFIG` (PoolOps Pro: waves mark, platform
+  tagline, base look) in `packages/shared/src/tenant/registry.ts` — a reserved
+  `"platform"` slug that is NOT in the tenant registry (can't be reached as a tenant)
+  and that no tenant can overwrite.
+- **Branding is decided by the ROUTE.** Middleware treats a request as platform when
+  there is **no real tenant signal** (`REAL_TENANT_SOURCES` = path / host / subdomain /
+  query / demo — a cookie/env fallback does NOT count) **and** the path is a platform
+  path (`isPlatformPath`: `/`, `/login`, marketing, `/setup`, `/accept-invite`,
+  `/reset-password`, …). It then sets `x-platform: 1` and clears the tenant header, so
+  `getServerTenantConfig()`/`getTenantSlug()` return `PLATFORM_CONFIG`/`"platform"`.
+  A `/<slug>/…` path or tenant host is a real signal, so `/villas` and `/villas/login`
+  stay tenant-branded; the authenticated app routes keep tenant context via the cookie.
+- **Config-driven headers.** The marketing header and the login page now render
+  `TenantWordmark` (reads the active config) instead of a hardcoded PoolOps Pro logo —
+  so platform pages show PoolOps Pro and `/villas/login` shows Villas, automatically.
+- **Metadata / OG / favicon follow.** `tenantMetadata` puts platform previews at the
+  site root (`og:url` = origin) with `/api/og/platform` (the OG route renders
+  `PLATFORM_CONFIG` for the platform slug) and the waves favicon; a tenant URL keeps
+  its own name, image, and favicon. Pool #2 gets its own brand inside its tenant and
+  PoolOps Pro everywhere else with no code changes.
+
 ## 5. Known pre-existing gaps (not introduced here, noted for honesty)
 
 - Authorization is UI-level in the app; RLS is the real boundary. This work does not change auth/RLS (per the "don't push destructive/auth changes while away" rule).

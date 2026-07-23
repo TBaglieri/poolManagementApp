@@ -41,6 +41,27 @@ export function firstPathSegment(pathname?: string | null): string {
   return pathname.replace(/^\/+/, "").split("/")[0]?.toLowerCase() ?? "";
 }
 
+/** Sources that indicate a REAL tenant signal (vs. a cookie/env fallback). */
+export const REAL_TENANT_SOURCES: TenantSource[] = ["query", "demo", "subdomain", "custom-domain", "path"];
+
+/**
+ * Platform (non-tenant) page paths — landing, root login, marketing, onboarding.
+ * These render the PoolOps Pro platform brand, never a tenant's, UNLESS a real
+ * tenant signal (a `/<slug>` path or a tenant host) is present. The authenticated
+ * app routes (/dashboard, /staff, …) are deliberately NOT here — they carry tenant
+ * context via the cookie after the `/<slug>` prefix is stripped.
+ */
+const PLATFORM_PREFIXES = [
+  "/login", "/pricing", "/quote", "/enter-demo", "/leave-demo",
+  "/unknown-facility", "/setup", "/accept-invite", "/reset-password", "/forgot-password",
+];
+
+export function isPlatformPath(pathname?: string | null): boolean {
+  const p = (pathname || "/").toLowerCase();
+  if (p === "/") return true;
+  return PLATFORM_PREFIXES.some((pre) => p === pre || p.startsWith(pre + "/"));
+}
+
 /** A slug we're willing to INFER from host/path/cookie (known + not the gated demo). */
 function inferable(slug?: string | null): boolean {
   return !!slug && KNOWN_TENANT_SLUGS.includes(slug.toLowerCase()) && slug.toLowerCase() !== DEMO_TENANT_SLUG;

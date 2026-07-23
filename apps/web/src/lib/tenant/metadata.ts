@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import type { TenantConfig } from "@poolops/shared";
+import { isPlatformSlug, type TenantConfig } from "@poolops/shared";
 import { faviconDataUri } from "./theme-css";
 
 /**
@@ -28,7 +28,9 @@ function safeBase(origin: string): URL | undefined {
 export function tenantMetadata(config: TenantConfig, ctx: TenantMetaContext): Metadata {
   const name = config.displayName;
   const description = config.copy.tagline;
-  const url = `${ctx.origin}/${ctx.slug}`;
+  // Platform pages live at the site root; a tenant lives under /<slug>.
+  const platform = isPlatformSlug(ctx.slug);
+  const url = platform ? ctx.origin : `${ctx.origin}/${ctx.slug}`;
   // A tenant-supplied favicon file (e.g. Villas' houses tile) wins; otherwise a
   // generated brand-color mark keeps every tenant's tab on-brand out of the box.
   const favicon = config.branding.favicon ? absolute(ctx.origin, config.branding.favicon) : faviconDataUri(config);
