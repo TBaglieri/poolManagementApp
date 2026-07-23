@@ -7,7 +7,7 @@ import {
   getFacility, staffName, facilityName,
   CHEMICAL_FIELDS, type ChemicalLog,
 } from "@poolops/shared";
-import { useAccess } from "@/lib/access";
+import { useAccess, useMyStaffId } from "@/lib/access";
 import { useDemo } from "@/lib/store";
 import { useTenantSeed } from "@/lib/tenant-data";
 import { useTenantConfig } from "@/lib/tenant/provider";
@@ -48,6 +48,7 @@ const CRITICAL_KEYS = ["freeChlorine", "combinedChlorine", "ph"];
 
 export default function ChemicalsPage() {
   const { can, staff: me, facilityId } = useAccess();
+  const myStaffId = useMyStaffId();
   const { facilities, pools } = useTenantSeed();
   const config = useTenantConfig();
   const tz = config.timezone || "America/New_York";
@@ -98,7 +99,7 @@ export default function ChemicalsPage() {
   const submit = () => {
     if (isFuture) return; // block future timestamps
     const flags = addLog({
-      facilityId: form.facilityId, poolId: form.poolId, recordedBy: me?.id ?? "staff_head1",
+      facilityId: form.facilityId, poolId: form.poolId, recordedBy: myStaffId ?? me?.id ?? "staff_head1",
       takenAt: takenDate.toISOString(),
       freeChlorine: Number(form.freeChlorine), combinedChlorine: Number(form.combinedChlorine),
       ph: Number(form.ph), alkalinity: Number(form.alkalinity), calciumHardness: Number(form.calciumHardness),

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { ListChecks, Check, Clock, CheckCircle2, Plus, Pencil, Trash2, Sparkles, GripVertical } from "lucide-react";
 import { staffName, uid, type ChecklistTemplate, type ChecklistItem, type ChecklistCadence } from "@poolops/shared";
-import { useAccess } from "@/lib/access";
+import { useAccess, useMyStaffId } from "@/lib/access";
 import { useDemo } from "@/lib/store";
 import { useTenantSeed } from "@/lib/tenant-data";
 import { PageHeader } from "@/components/ui/page-header";
@@ -21,6 +21,7 @@ const CADENCE_LABEL: Record<ChecklistCadence, string> = { daily: "Daily", per_sh
 
 export default function ChecklistsPage() {
   const { can, staff: me } = useAccess();
+  const myStaffId = useMyStaffId();
   const { facilities } = useTenantSeed();
   const templates = useDemo((s) => s.checklistTemplates);
   const completions = useDemo((s) => s.checklists);
@@ -135,7 +136,7 @@ export default function ChecklistsPage() {
           facilities={facilities.filter((f) => runner.facilityIds.length === 0 || runner.facilityIds.includes(f.id))}
           onClose={() => setRunner(null)}
           onSubmit={(checked, note, fac) => {
-            complete({ templateId: runner.id, facilityId: fac, completedBy: me?.id ?? "staff", status: checked.length === runner.items.length ? "complete" : "incomplete", checkedItemIds: checked, note });
+            complete({ templateId: runner.id, facilityId: fac, completedBy: myStaffId ?? me?.id ?? "staff", status: checked.length === runner.items.length ? "complete" : "incomplete", checkedItemIds: checked, note });
             setRunner(null);
           }}
         />
