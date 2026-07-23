@@ -82,6 +82,8 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "Branding & Modules", href: "/settings/branding", icon: "Palette", anyOf: ["settings.manage"] },
       { label: "Billing", href: "/billing", icon: "CreditCard", anyOf: ["settings.manage"] },
       { label: "Settings", href: "/settings", icon: "Settings", anyOf: ["settings.view"] },
+      // Own-account security (change password) — available to EVERY signed-in role.
+      { label: "My Account", href: "/settings/security", icon: "KeyRound", anyOf: [] },
     ],
   },
 ];

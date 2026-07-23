@@ -77,6 +77,27 @@ npm run review-invite-roles -- --tenant villas
 npm run review-invite-roles -- --fix        # demote ONLY the flagged mismatches
 ```
 
+## 3d. Password reset (email unconfigured → use the admin link)
+
+Email/SMTP isn't configured in this project yet, so the self-serve "Forgot password?"
+flow builds the correct Supabase recovery email but delivery won't happen until you
+wire SMTP. The **reliable** path meanwhile is admin-driven:
+
+- Users & Access → a member's row → **Reset** → **Copy reset link** → send it to them
+  manually. They open it, set a new password, and land in the tenant.
+- Any user can also change their own password at **My Account** (`/settings/security`)
+  with their current password — no email needed.
+
+**Add these to Supabase → Authentication → URL Configuration → Redirect URLs** so
+recovery links are accepted:
+
+```
+https://<your-domain>/reset-password
+https://<your-domain>/*/reset-password
+http://localhost:3000/reset-password
+http://localhost:3000/*/reset-password
+```
+
 ## 4. Run the tests
 
 ```bash

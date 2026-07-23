@@ -50,6 +50,39 @@ export async function signOut(): Promise<void> {
   if (client) await client.auth.signOut();
 }
 
+/** Send a Supabase password-recovery email. Always resolves ok (neutral response);
+ *  delivery depends on the project's SMTP being configured. `redirectTo` is where the
+ *  emailed link lands (must be registered in Supabase Auth → Redirect URLs). */
+export async function sendPasswordReset(email: string, redirectTo: string): Promise<{ ok: boolean; error: string | null }> {
+  const client = getBrowserSupabase();
+  if (!client) return { ok: false, error: "Password reset isn't available (mock mode)." };
+  const { error } = await client.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+  return { ok: !error, error: error?.message ?? null };
+}
+
+/** True if a Supabase session is present (e.g. the recovery link established one). */
+export async function hasSession(): Promise<boolean> {
+  const client = getBrowserSupabase();
+  if (!client) return false;
+  const { data } = await client.auth.getSession();
+  return !!data.session;
+}
+
+/** Verify the current password by re-authenticating (updateUser never checks it). */
+export async function reauthenticate(email: string, currentPassword: string): Promise<{ ok: boolean; error: string | null }> {
+  const res = await signIn(email, currentPassword);
+  return { ok: res.ok, error: res.ok ? null : "Your current password is incorrect." };
+}
+
+/** Set a new password for the CURRENT session's user (Supabase enforces own-account
+ *  only — the anon client with a user's JWT can only update that user). */
+export async function updatePassword(newPassword: string): Promise<{ ok: boolean; error: string | null }> {
+  const client = getBrowserSupabase();
+  if (!client) return { ok: false, error: "Not available (mock mode)." };
+  const { error } = await client.auth.updateUser({ password: newPassword });
+  return { ok: !error, error: error?.message ?? null };
+}
+
 export async function getCurrentUser(): Promise<AuthUser | null> {
   const client = getBrowserSupabase();
   if (!client) return null;

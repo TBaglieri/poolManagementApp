@@ -40,6 +40,19 @@ export default function UsersPage() {
   const [resetSent, setResetSent] = useState<Record<string, boolean>>({});
   const [rowBusy, setRowBusy] = useState<Record<string, boolean>>({});
   const [roleMsg, setRoleMsg] = useState<Record<string, string>>({});
+  const [resetLink, setResetLink] = useState<Record<string, string>>({});
+
+  // Admin-driven password reset — returns a copyable recovery link (reliable while
+  // email/SMTP isn't configured). Server-enforced admin-only + tenant-scoped.
+  const sendReset = async (id: string, email: string) => {
+    setResetSent((r) => ({ ...r, [id]: true }));
+    try {
+      const res = await fetch("/api/admin/reset-password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) });
+      const json = await res.json();
+      if (json.ok && json.link) setResetLink((m) => ({ ...m, [id]: json.link }));
+      else setRoleMsg((m) => ({ ...m, [id]: json.error || "Reset unavailable" }));
+    } catch { setRoleMsg((m) => ({ ...m, [id]: "Network error" })); }
+  };
 
   // Change a member's role (server-enforced: admin-only, tenant-scoped, last-admin
   // guarded, audited). The row's id is the member's profile id in supabase mode.
@@ -187,10 +200,12 @@ export default function UsersPage() {
                     </td>
                     <td className="px-3 py-2.5 text-center"><StatusBadge label={off ? "Deactivated" : "Active"} intent={off ? "neutral" : "success"} /></td>
                     <td className="px-3 py-2.5 text-right whitespace-nowrap">
-                      {resetSent[u.id] ? (
-                        <span className="mr-2 text-xs text-emerald-600">Reset link sent</span>
+                      {resetLink[u.id] ? (
+                        <button onClick={() => navigator.clipboard?.writeText(resetLink[u.id])} className="mr-1 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-50" title="Copy the reset link to send manually"><Copy className="h-3.5 w-3.5" /> Copy reset link</button>
+                      ) : resetSent[u.id] ? (
+                        <span className="mr-2 text-xs text-slate-400">Generating…</span>
                       ) : (
-                        <button onClick={() => setResetSent((r) => ({ ...r, [u.id]: true }))} className="mr-1 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" title="Send password reset"><KeyRound className="h-3.5 w-3.5" /> Reset</button>
+                        <button onClick={() => sendReset(u.id, u.email)} className="mr-1 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" title="Send password reset"><KeyRound className="h-3.5 w-3.5" /> Reset</button>
                       )}
                       {off ? (
                         <button onClick={() => toggleActive(u.id, false)} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-50"><RotateCcw className="h-3.5 w-3.5" /> Reactivate</button>

@@ -401,6 +401,31 @@ default tenant," not by whether the route is actually tenant-scoped.
   its own name, image, and favicon. Pool #2 gets its own brand inside its tenant and
   PoolOps Pro everywhere else with no code changes.
 
+## 4j. Password reset + change-password (new flows)
+
+- **Forgot password** (`/forgot-password`, tenant-aware): email → Supabase
+  `resetPasswordForEmail` with a `redirectTo` that carries tenant context
+  (`/<slug>/reset-password`). The response is ALWAYS the same neutral message
+  (`RESET_REQUEST_NEUTRAL_MESSAGE`) — it never reveals whether an email is registered.
+  Link on both the platform and every tenant login, branded per §4i.
+- **Reset landing** (`/reset-password`): waits for the recovery session Supabase
+  establishes from the (single-use, expiring) link, then `updateUser({ password })`,
+  then routes to the user's tenant. Invalid/expired → "request a new link".
+- **Change password** (`/settings/security`, "My Account" — visible to EVERY role):
+  requires the current password (verified by re-authenticating, since Supabase's
+  `updateUser` doesn't check it), confirmed new password meeting policy, shared Button
+  states. Own-account only — `updateUser` acts on the caller's own session; changing
+  anyone else's password is the admin-only route below. No password is ever logged.
+- **Admin-driven reset** (reliable while SMTP is unconfigured):
+  `/api/admin/reset-password` — admin-only, tenant-scoped — uses
+  `admin.generateLink({ type: "recovery" })` to return a **copyable** action link the
+  admin can send manually (Users & Access → Reset → "Copy reset link").
+- **Supabase Auth → Redirect URLs to add** (dashboard → Authentication → URL
+  Configuration): `https://<your-domain>/reset-password`,
+  `https://<your-domain>/*/reset-password` (tenant path form), and the localhost
+  equivalents `http://localhost:3000/reset-password`,
+  `http://localhost:3000/*/reset-password`.
+
 ## 5. Known pre-existing gaps (not introduced here, noted for honesty)
 
 - Authorization is UI-level in the app; RLS is the real boundary. This work does not change auth/RLS (per the "don't push destructive/auth changes while away" rule).

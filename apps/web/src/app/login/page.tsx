@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, Monitor, Smartphone, Mail, Lock, Check, Loader2, AlertCircle, Database } from "lucide-react";
-import { ROLE_LIST, getRole, isDemoTenant, resolveAssignedRole, type RoleSlug } from "@poolops/shared";
+import { ROLE_LIST, getRole, isDemoTenant, isPlatformSlug, resolveAssignedRole, type RoleSlug } from "@poolops/shared";
 import { getEffectiveDataMode } from "@poolops/supabase";
 import { useSession } from "@/lib/session";
 import { useTenantConfig } from "@/lib/tenant/provider";
@@ -74,6 +74,9 @@ export default function LoginPage() {
   };
 
   const others = ROLE_LIST.filter((r) => !FEATURED.includes(r.slug));
+  // Carry tenant context so the reset link returns the user to the right place.
+  const tenantScoped = !isPlatformSlug(config.slug) && !isDemoTenant(config);
+  const forgotHref = tenantScoped ? `/${config.slug}/forgot-password` : "/forgot-password";
 
   return (
     <div className="flex min-h-full">
@@ -101,7 +104,12 @@ export default function LoginPage() {
               </div>
             </div>
             <div>
-              <label className="label">Password</label>
+              <div className="flex items-center justify-between">
+                <label className="label">Password</label>
+                {supabaseMode && mode === "signin" && (
+                  <Link href={forgotHref} className="text-xs font-medium text-brand-600 hover:text-brand-700">Forgot password?</Link>
+                )}
+              </div>
               <div className="relative">
                 <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input className="input pl-9" value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder={mode === "signup" ? "Choose a password (min 6 chars)" : "Your password"} autoComplete={mode === "signup" ? "new-password" : "current-password"} />
