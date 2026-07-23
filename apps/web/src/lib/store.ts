@@ -7,8 +7,9 @@ import {
   type MaintenanceIssue, type Message, type MessageKind, type Notification, type PatronCount,
   type RequestStatus, type ShiftReport, type ShiftTradeRequest, type TimeClockEntry,
   type TimeOffRequest, type IssueStatus, type MessageTemplateKey, type SubmissionStatus,
-  type OnboardingStepKey, type Shift,
+  type OnboardingStepKey, type Shift, type ChecklistTemplate,
   channels as seedChannels, chemicalLogs as seedChem, checklistCompletions as seedChecklists,
+  checklistTemplates as seedChecklistTemplates,
   maintenanceIssues as seedIssues, messages as seedMessages, notifications as seedNotifications,
   onboardingSubmissions as seedOnboarding, patronCounts as seedPatron, shiftReports as seedReports,
   shiftTradeRequests as seedTrades, shifts as seedShifts, timeClockEntries as seedClock, timeOffRequests as seedTimeOff,
@@ -53,6 +54,9 @@ interface DemoState {
   chemicals: ChemicalLog[];
   messages: Message[];
   checklists: ChecklistCompletion[];
+  /** Admin-created checklist templates. EMPTY for a real tenant until an admin
+   *  creates one (or imports the examples); the demo tenant is seeded with samples. */
+  checklistTemplates: ChecklistTemplate[];
   patron: PatronCount[];
   reports: ShiftReport[];
   notifications: Notification[];
@@ -89,6 +93,12 @@ interface DemoState {
   postMessage: (channelId: ID, senderId: ID, body: string, opts?: PostOptions) => void;
   togglePinMessage: (id: ID) => void;
   completeChecklist: (c: Omit<ChecklistCompletion, "id" | "completedAt">) => void;
+  /** Admin CRUD for checklist templates (create/edit/archive/import examples). */
+  addChecklistTemplate: (t: Omit<ChecklistTemplate, "id">) => string;
+  updateChecklistTemplate: (id: ID, patch: Partial<Omit<ChecklistTemplate, "id">>) => void;
+  removeChecklistTemplate: (id: ID) => void;
+  /** "Start from example" — load the sample templates into a real tenant on demand. */
+  importExampleChecklists: () => void;
   addPatronCount: (facilityId: ID, timeSlot: string, count: number, by: ID) => void;
   addReport: (r: Omit<ShiftReport, "id">) => void;
   markNotificationsRead: () => void;
@@ -111,7 +121,8 @@ function demoSeed() {
   return {
     timeOff: clone(seedTimeOff), trades: clone(seedTrades), clock: clone(seedClock),
     issues: clone(seedIssues), chemicals: clone(seedChem), messages: clone(seedMessages),
-    checklists: clone(seedChecklists), patron: clone(seedPatron), reports: clone(seedReports),
+    checklists: clone(seedChecklists), checklistTemplates: clone(seedChecklistTemplates),
+    patron: clone(seedPatron), reports: clone(seedReports),
     notifications: clone(seedNotifications), onboarding: clone(seedOnboarding),
     channels: clone(seedChannels), shifts: clone(seedShifts),
   };
@@ -127,6 +138,7 @@ export const useDemo = create<DemoState>((set, get) => ({
   chemicals: [],
   messages: [],
   checklists: [],
+  checklistTemplates: [],
   patron: [],
   reports: [],
   notifications: [],
@@ -333,9 +345,13 @@ export const useDemo = create<DemoState>((set, get) => ({
       cyanuricAcid: log.cyanuricAcid, waterTemp: log.waterTemp,
     };
     const flags = chemFlags(log.facilityId, values);
+    const nowIso = new Date().toISOString();
+    // The reading's taken-at time (defaults to now, user may backdate); recordedAt is
+    // the audit/created time and is always "now".
+    const takenAt = log.takenAt ?? nowIso;
     set((s) => ({
       chemicals: [
-        { ...log, id: uid("chem"), recordedAt: new Date().toISOString(), outOfRange: flags },
+        { ...log, takenAt, id: uid("chem"), recordedAt: nowIso, outOfRange: flags },
         ...s.chemicals,
       ],
     }));
@@ -344,7 +360,7 @@ export const useDemo = create<DemoState>((set, get) => ({
         facility_id: log.facilityId, pool_id: log.poolId, recorded_by: log.recordedBy,
         free_chlorine: log.freeChlorine, combined_chlorine: log.combinedChlorine, ph: log.ph,
         alkalinity: log.alkalinity, calcium_hardness: log.calciumHardness, cyanuric_acid: log.cyanuricAcid,
-        water_temp: log.waterTemp, notes: log.notes ?? null, out_of_range: flags,
+        water_temp: log.waterTemp, notes: log.notes ?? null, out_of_range: flags, taken_at: takenAt,
       });
     }
     return flags;
@@ -375,6 +391,25 @@ export const useDemo = create<DemoState>((set, get) => ({
     set((s) => ({
       checklists: [{ ...c, id: uid("clc"), completedAt: new Date().toISOString() }, ...s.checklists],
     })),
+
+  addChecklistTemplate: (t) => {
+    const id = uid("cl");
+    set((s) => ({ checklistTemplates: [{ ...t, id }, ...s.checklistTemplates] }));
+    return id;
+  },
+  updateChecklistTemplate: (id, patch) =>
+    set((s) => ({ checklistTemplates: s.checklistTemplates.map((t) => (t.id === id ? { ...t, ...patch } : t)) })),
+  removeChecklistTemplate: (id) =>
+    set((s) => ({ checklistTemplates: s.checklistTemplates.filter((t) => t.id !== id) })),
+  importExampleChecklists: () =>
+    set((s) => {
+      // Only add examples that aren't already present (idempotent), re-id'd for this tenant.
+      const have = new Set(s.checklistTemplates.map((t) => t.name.toLowerCase()));
+      const add = clone(seedChecklistTemplates)
+        .filter((t) => !have.has(t.name.toLowerCase()))
+        .map((t) => ({ ...t, id: uid("cl") }));
+      return { checklistTemplates: [...add, ...s.checklistTemplates] };
+    }),
 
   addPatronCount: (facilityId, timeSlot, count, by) =>
     set((s) => ({

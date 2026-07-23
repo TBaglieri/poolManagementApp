@@ -2,11 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { UsersRound, Plus, TrendingUp } from "lucide-react";
-import {
-  patronCounts, facilities, facilityName, format24h,
-} from "@poolops/shared";
+import { facilityName, format24h } from "@poolops/shared";
 import { useAccess } from "@/lib/access";
 import { useDemo } from "@/lib/store";
+import { useTenantSeed } from "@/lib/tenant-data";
 import { PageHeader } from "@/components/ui/page-header";
 import { SectionCard } from "@/components/ui/section-card";
 import { StatCard } from "@/components/ui/stat-card";
@@ -17,14 +16,16 @@ import { SimpleBar } from "@/components/charts/charts-lazy";
 
 export default function PatronCountsPage() {
   const { can, staffId, facilityId } = useAccess();
+  const { facilities } = useTenantSeed();
   const stored = useDemo((s) => s.patron);
   const addPatron = useDemo((s) => s.addPatronCount);
 
-  const [facility, setFacility] = useState<string>(facilityId === "all" ? "fac_maplewood" : facilityId);
+  const [facility, setFacility] = useState<string>(facilityId === "all" ? (facilities[0]?.id ?? "") : facilityId);
   const [slot, setSlot] = useState("14:00");
   const [count, setCount] = useState(40);
 
-  const all = stored.length ? stored : patronCounts;
+  // No demo fallback — a real tenant with no counts shows empty charts.
+  const all = stored;
 
   // Today's hourly counts for the selected facility.
   const todays = useMemo(() => {

@@ -77,6 +77,16 @@ npm run review-invite-roles -- --tenant villas
 npm run review-invite-roles -- --fix        # demote ONLY the flagged mismatches
 ```
 
+## 3e. Apply the additive SQL migrations (Supabase SQL Editor)
+
+Run these once (idempotent, safe to re-run) after `schema.sql` + `rls-policies.sql`:
+
+```
+supabase/chem-taken-at.sql       # chemical_logs.taken_at (when a reading was taken)
+supabase/shift-reports-rls.sql   # lifeguards see only their own shift reports (server-side)
+supabase/staff-auth-link.sql     # (if not already applied) auth → staff_profiles link
+```
+
 ## 3d. Password reset (email unconfigured → use the admin link)
 
 Email/SMTP isn't configured in this project yet, so the self-serve "Forgot password?"

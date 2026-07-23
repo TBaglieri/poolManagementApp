@@ -78,6 +78,7 @@ function mapMaintenance(r: any): MaintenanceIssue {
 function mapChem(r: any): ChemicalLog {
   return {
     id: s(r.id), facilityId: s(r.facility_id), poolId: s(r.pool_id), recordedBy: s(r.recorded_by),
+    takenAt: s(r.taken_at ?? r.created_at ?? r.recorded_at),
     recordedAt: s(r.created_at ?? r.recorded_at), freeChlorine: n(r.free_chlorine), combinedChlorine: n(r.combined_chlorine),
     ph: n(r.ph), alkalinity: n(r.alkalinity), calciumHardness: n(r.calcium_hardness), cyanuricAcid: n(r.cyanuric_acid),
     waterTemp: n(r.water_temp), notes: r.notes ?? undefined, correctiveAction: r.corrective_action ?? undefined,

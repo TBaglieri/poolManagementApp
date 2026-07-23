@@ -3,9 +3,9 @@
 import { useMemo, useState } from "react";
 import { FileText, CloudSun, Users, AlertTriangle, Wrench, Package } from "lucide-react";
 import {
-  shiftReports, facilityName, staffName, getStaff, formatDate, type ShiftReport,
+  facilityName, staffName, getStaff, formatDate, type ShiftReport,
 } from "@poolops/shared";
-import { useAccess } from "@/lib/access";
+import { useAccess, useMyStaffId } from "@/lib/access";
 import { useDemo } from "@/lib/store";
 import { PageHeader } from "@/components/ui/page-header";
 import { SectionCard } from "@/components/ui/section-card";
@@ -18,15 +18,21 @@ const REVIEW_INTENT = { submitted: "info", reviewed: "success", flagged: "danger
 
 export default function ShiftReportsPage() {
   const { can, facilityId } = useAccess();
+  const myStaffId = useMyStaffId();
   const storeReports = useDemo((s) => s.reports);
   const [activeId, setActiveId] = useState<string | null>(null);
 
+  // Only a reviewer/admin sees ALL reports; a front-line lifeguard sees only their
+  // OWN. (Server-side RLS enforces the same — shift-reports-rls.sql.) No demo-data
+  // fallback: a real tenant with no reports shows an empty state.
+  const seesAll = can("shiftreports.review");
+
   const reports = useMemo(() => {
-    const all = storeReports.length ? storeReports : shiftReports;
-    return all
+    return storeReports
+      .filter((r) => seesAll || r.staffId === myStaffId)
       .filter((r) => facilityId === "all" || r.facilityId === facilityId)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [storeReports, facilityId]);
+  }, [storeReports, facilityId, seesAll, myStaffId]);
 
   if (!can("shiftreports.view") && !can("shiftreports.submit")) return <AccessRestricted />;
 

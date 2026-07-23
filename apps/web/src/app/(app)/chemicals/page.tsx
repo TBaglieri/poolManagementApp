@@ -1,14 +1,35 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { FlaskConical, AlertTriangle, CheckCircle2, Beaker } from "lucide-react";
 import {
-  getFacility, staffName, facilityName, formatDateTime, formatTime,
+  getFacility, staffName, facilityName,
   CHEMICAL_FIELDS, type ChemicalLog,
 } from "@poolops/shared";
 import { useAccess } from "@/lib/access";
 import { useDemo } from "@/lib/store";
 import { useTenantSeed } from "@/lib/tenant-data";
+import { useTenantConfig } from "@/lib/tenant/provider";
+
+/** The reading's taken-at time (falls back to the audit time for legacy rows). */
+const takenOf = (c: { takenAt?: string; recordedAt: string }) => c.takenAt ?? c.recordedAt;
+
+/** Value for a <input type="datetime-local"> representing `d` in local time. */
+function toLocalInput(d: Date): string {
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+/** Format an ISO timestamp in the tenant's timezone (e.g. America/New_York). */
+function fmtInTz(iso: string, tz: string, opts: Intl.DateTimeFormatOptions): string {
+  try { return new Intl.DateTimeFormat("en-US", { ...opts, timeZone: tz }).format(new Date(iso)); }
+  catch { return new Date(iso).toLocaleString("en-US", opts); }
+}
+/** The calendar day (YYYY-MM-DD) an ISO timestamp falls on in the tenant timezone. */
+function dayInTz(iso: string, tz: string): string {
+  return fmtInTz(iso, tz, { year: "numeric", month: "2-digit", day: "2-digit" });
+}
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
@@ -28,6 +49,9 @@ const CRITICAL_KEYS = ["freeChlorine", "combinedChlorine", "ph"];
 export default function ChemicalsPage() {
   const { can, staff: me, facilityId } = useAccess();
   const { facilities, pools } = useTenantSeed();
+  const config = useTenantConfig();
+  const tz = config.timezone || "America/New_York";
+  const expectedPerDay = config.operations.expectedReadingsPerDay; // per-tenant; Villas=3, others may be unset
   const chemicals = useDemo((s) => s.chemicals);
   const addLog = useDemo((s) => s.addChemicalLog);
 
@@ -35,14 +59,17 @@ export default function ChemicalsPage() {
   const [chartFacility, setChartFacility] = useState(facilities[0]?.id ?? "");
   const [result, setResult] = useState<string[] | null>(null);
   const [form, setForm] = useState({
-    facilityId: facilities[0]?.id ?? "", poolId: pools[0]?.id ?? "",
+    facilityId: facilities[0]?.id ?? "", poolId: pools[0]?.id ?? "", takenAt: toLocalInput(new Date()),
     freeChlorine: "2.4", combinedChlorine: "0.2", ph: "7.5", alkalinity: "100",
     calciumHardness: "280", cyanuricAcid: "40", waterTemp: "82", notes: "", correctiveAction: "",
   });
 
   const facMatch = (fid: string) => facilityId === "all" || fid === facilityId;
-  const visible = chemicals.filter((c) => facMatch(c.facilityId));
-  const todayLogs = visible.filter((c) => new Date(c.recordedAt).toDateString() === new Date().toDateString());
+  // Order by TAKEN-AT (so three readings in a day sort correctly), newest first.
+  const visible = chemicals.filter((c) => facMatch(c.facilityId))
+    .slice().sort((a, b) => new Date(takenOf(b)).getTime() - new Date(takenOf(a)).getTime());
+  const todayKey = dayInTz(new Date().toISOString(), tz);
+  const todayLogs = visible.filter((c) => dayInTz(takenOf(c), tz) === todayKey);
   const warnings = visible.filter((c) => c.outOfRange.length > 0);
 
   // Pool-closure status: for each facility, look at its most recent reading. If a
@@ -56,15 +83,23 @@ export default function ChemicalsPage() {
 
   const chartData = useMemo(() => chemicals
     .filter((c) => c.facilityId === chartFacility)
-    .slice(0, 8).reverse()
-    .map((c) => ({ t: formatTime(c.recordedAt), FC: c.freeChlorine, CC: c.combinedChlorine, pH: c.ph })),
-    [chemicals, chartFacility]);
+    .slice().sort((a, b) => new Date(takenOf(a)).getTime() - new Date(takenOf(b)).getTime())
+    .slice(-8)
+    .map((c) => ({ t: fmtInTz(takenOf(c), tz, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }), FC: c.freeChlorine, CC: c.combinedChlorine, pH: c.ph })),
+    [chemicals, chartFacility, tz]);
 
   const facilityPools = pools.filter((p) => p.facilityId === form.facilityId);
 
+  // Warn (don't block) on a suspiciously old backdate (> 14 days).
+  const takenDate = form.takenAt ? new Date(form.takenAt) : new Date();
+  const isFuture = takenDate.getTime() > Date.now() + 5 * 60_000; // 5-min tolerance
+  const tooOld = takenDate.getTime() < Date.now() - 14 * 86_400_000;
+
   const submit = () => {
+    if (isFuture) return; // block future timestamps
     const flags = addLog({
       facilityId: form.facilityId, poolId: form.poolId, recordedBy: me?.id ?? "staff_head1",
+      takenAt: takenDate.toISOString(),
       freeChlorine: Number(form.freeChlorine), combinedChlorine: Number(form.combinedChlorine),
       ph: Number(form.ph), alkalinity: Number(form.alkalinity), calciumHardness: Number(form.calciumHardness),
       cyanuricAcid: Number(form.cyanuricAcid), waterTemp: Number(form.waterTemp),
@@ -73,7 +108,7 @@ export default function ChemicalsPage() {
     setResult(flags);
   };
 
-  const closeModal = () => { setOpen(false); setResult(null); };
+  const closeModal = () => { setOpen(false); setResult(null); setForm((f) => ({ ...f, takenAt: toLocalInput(new Date()) })); };
 
   return (
     <div className="space-y-6">
@@ -82,11 +117,12 @@ export default function ChemicalsPage() {
 
       {facilities.length === 0 && (
         <EmptyState icon="FlaskConical" title="No chemical readings logged yet"
-          description="Add a facility first, then log water chemistry to build an audit-ready history." />
+          description="A reading is logged against a facility. Add your pool first, then record water chemistry to build an audit-ready history."
+          action={can("facilities.manage") ? <Link href="/facilities" className="btn-primary">Add a facility</Link> : undefined} />
       )}
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Readings today" value={todayLogs.length} icon="FlaskConical" intent="brand" />
+        <StatCard label={expectedPerDay ? `Readings today (of ${expectedPerDay})` : "Readings today"} value={todayLogs.length} icon="FlaskConical" intent={expectedPerDay && todayLogs.length < expectedPerDay ? "warning" : "brand"} />
         <StatCard label="Out of range" value={warnings.length} icon="AlertTriangle" intent={warnings.length ? "danger" : "success"} />
         <StatCard label="Facilities monitored" value={facilities.length} icon="Building2" intent="info" />
         <StatCard label="Total logs" value={visible.length} icon="ListChecks" intent="neutral" />
@@ -117,7 +153,7 @@ export default function ChemicalsPage() {
                   </Badge>
                 </div>
                 <p className="mt-1 text-xs text-slate-500">
-                  {latest ? `Last reading ${formatDateTime(latest.recordedAt)}` : "No readings yet"}
+                  {latest ? `Last reading ${fmtInTz(takenOf(latest), tz, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}` : "No readings yet"}
                   {closed && ` · ${critical.map((k) => FIELD_LABEL[k] ?? k).join(", ")}`}
                 </p>
               </div>
@@ -164,7 +200,7 @@ export default function ChemicalsPage() {
                     const flagged = c.outOfRange.includes(f.key);
                     return <td key={f.key} className={`px-2 py-2.5 text-right ${flagged ? "font-bold text-rose-600" : "text-slate-600"}`}>{(c as unknown as Record<string, number>)[f.key]}</td>;
                   })}
-                  <td className="px-3 py-2.5"><p className="text-slate-600">{staffName(c.recordedBy)}</p><p className="text-xs text-slate-400">{formatDateTime(c.recordedAt)}</p></td>
+                  <td className="px-3 py-2.5"><p className="text-slate-600">{staffName(c.recordedBy)}</p><p className="text-xs text-slate-400">{fmtInTz(takenOf(c), tz, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</p></td>
                 </tr>
               ))}
             </tbody>
@@ -174,7 +210,7 @@ export default function ChemicalsPage() {
 
       <Modal open={open} onClose={closeModal} title="Log chemical reading" size="lg"
         footer={result === null
-          ? <><Button variant="secondary" onClick={closeModal}>Cancel</Button><Button onClick={submit} icon="Beaker">Save reading</Button></>
+          ? <><Button variant="secondary" onClick={closeModal}>Cancel</Button><Button onClick={submit} icon="Beaker" disabled={isFuture}>Save reading</Button></>
           : <Button onClick={closeModal}>Done</Button>}>
         {result === null ? (
           <div className="space-y-4">
@@ -182,6 +218,11 @@ export default function ChemicalsPage() {
               <Field label="Facility"><Select value={form.facilityId} onChange={(e) => { const fid = e.target.value; setForm({ ...form, facilityId: fid, poolId: pools.find((p) => p.facilityId === fid)?.id ?? form.poolId }); }}>{facilities.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</Select></Field>
               <Field label="Pool / body"><Select value={form.poolId} onChange={(e) => setForm({ ...form, poolId: e.target.value })}>{facilityPools.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></Field>
             </div>
+            <Field label="Date & time taken" hint={`Defaults to now (${tz}). Edit to log an earlier reading or catch up a missed entry.`}>
+              <Input type="datetime-local" value={form.takenAt} onChange={(e) => setForm({ ...form, takenAt: e.target.value })} />
+            </Field>
+            {isFuture && <p className="flex items-center gap-1.5 text-xs text-rose-600"><AlertTriangle className="h-3.5 w-3.5" /> The taken-at time can't be in the future.</p>}
+            {!isFuture && tooOld && <p className="flex items-center gap-1.5 text-xs text-amber-600"><AlertTriangle className="h-3.5 w-3.5" /> This reading is backdated more than two weeks — double-check the date.</p>}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {CHEMICAL_FIELDS.map((f) => (
                 <Field key={f.key} label={`${f.short} ${f.unit ? `(${f.unit})` : ""}`}>

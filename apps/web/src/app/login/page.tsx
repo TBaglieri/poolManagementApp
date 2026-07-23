@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, Monitor, Smartphone, Mail, Lock, Check, Loader2, AlertCircle, Database } from "lucide-react";
-import { ROLE_LIST, getRole, isDemoTenant, isPlatformSlug, resolveAssignedRole, type RoleSlug } from "@poolops/shared";
+import { ROLE_LIST, getRole, isDemoTenant, isPlatformSlug, resolveAssignedRole, landingPathForRole, type RoleSlug } from "@poolops/shared";
 import { getEffectiveDataMode } from "@poolops/supabase";
 import { useSession } from "@/lib/session";
 import { useTenantConfig } from "@/lib/tenant/provider";
@@ -65,12 +65,16 @@ export default function LoginPage() {
     const ut = res.user ? await resolveUserTenant(res.user.id) : { slug: null, orgName: null, role: null, firstName: null, staffId: null, staffLinked: null };
     setBusy(false);
     // Never escalate on a missing role — fall back to the tenant's LOWEST privilege.
-    loginReal(email, resolveAssignedRole(config, ut.role), true);
+    const assignedRole = resolveAssignedRole(config, ut.role);
+    loginReal(email, assignedRole, true);
     setUserName(ut.firstName ?? (email.includes("@") ? email.split("@")[0] : email));
     setStaffLink(ut.staffId, ut.staffLinked === true);
     if (ut.staffLinked === false) console.warn(`[staff-link] ${email} signed in with an org membership but no linked staff profile — self-service features will show the "profile not set up" state. Run scripts/link-staff-profiles.ts.`);
     if (ut.orgName) setRealOrg(ut.orgName, "small");
-    router.push(ut.slug ? `/${ut.slug}/dashboard` : "/dashboard");
+    // Land on a page this role can actually use (lifeguards → Schedule, not a
+    // restricted Dashboard).
+    const home = landingPathForRole(assignedRole);
+    router.push(ut.slug ? `/${ut.slug}${home}` : home);
   };
 
   const others = ROLE_LIST.filter((r) => !FEATURED.includes(r.slug));

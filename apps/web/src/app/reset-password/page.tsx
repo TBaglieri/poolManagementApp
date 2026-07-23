@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Lock, Loader2, Check, AlertCircle } from "lucide-react";
-import { isPlatformSlug, isDemoTenant } from "@poolops/shared";
+import { isPlatformSlug, isDemoTenant, landingPathForRole } from "@poolops/shared";
 import { getBrowserSupabase, getEffectiveDataMode } from "@poolops/supabase";
 import { useTenantConfig } from "@/lib/tenant/provider";
 import { updatePassword } from "@/lib/auth";
@@ -62,7 +62,8 @@ export default function ResetPasswordPage() {
     let dest = "/dashboard";
     if (data.user) {
       const ut = await resolveUserTenant(data.user.id);
-      if (ut.slug) dest = `/${ut.slug}/dashboard`;
+      const home = landingPathForRole(ut.role ?? "lifeguard");
+      dest = ut.slug ? `/${ut.slug}${home}` : home;
     }
     setBusy(false);
     setTimeout(() => router.push(dest), 1200);

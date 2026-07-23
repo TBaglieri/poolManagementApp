@@ -1,4 +1,5 @@
-import type { PermissionKey } from "../types";
+import type { PermissionKey, RoleSlug } from "../types";
+import { canAny } from "./permissions";
 
 /** A single sidebar link. `icon` is a lucide-react icon name resolved on the web. */
 export interface NavItem {
@@ -90,3 +91,19 @@ export const NAV_SECTIONS: NavSection[] = [
 
 /** Flattened list of every routable nav item, for guards & breadcrumbs. */
 export const ALL_NAV_ITEMS: NavItem[] = NAV_SECTIONS.flatMap((s) => s.items);
+
+/**
+ * The landing route for a role — the FIRST real nav destination the role can
+ * actually access, driven by the permission model (not hardcoded per role). So an
+ * admin lands on the Dashboard, a lifeguard (no `dashboard.view`) lands on Schedule,
+ * and any future role gets a sensible landing automatically. Never returns a page
+ * the role can't view; falls back to the always-accessible "My Account".
+ */
+export function landingPathForRole(role: RoleSlug | null | undefined): string {
+  if (!role) return "/login";
+  for (const item of ALL_NAV_ITEMS) {
+    if (item.demoOnly) continue;
+    if (item.anyOf.length === 0 || canAny(role, item.anyOf)) return item.href;
+  }
+  return "/settings/security";
+}

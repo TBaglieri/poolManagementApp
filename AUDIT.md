@@ -426,6 +426,73 @@ default tenant," not by whether the route is actually tenant-scoped.
   equivalents `http://localhost:3000/reset-password`,
   `http://localhost:3000/*/reset-password`.
 
+## 4k. Real-tenant correctness (demo leaks, checklists, chem date/time, scoping, landings)
+
+**Demo-data leaks found + how they're now prevented** (a real tenant renders only its
+own records + empty states):
+- **Shift Reports** rendered demo reports (Jordan Kim / Maplewood / Riverbend …) via a
+  `storeReports.length ? storeReports : shiftReports` **seed fallback**. Removed — the
+  page reads the (empty-for-real) store only. Also role-scoped (below).
+- **Facility switcher** listed demo facilities (imported the `facilities` seed). Now
+  reads `useTenantSeed().facilities` (empty for a fresh real tenant).
+- **Patron Counts** had the same `stored.length ? stored : patronCounts` fallback and a
+  hardcoded `fac_maplewood`. Removed the fallback; facilities from `useTenantSeed`.
+- **Checklists** rendered five pre-seeded templates for everyone. Templates are now
+  tenant-scoped store data — **empty for a real tenant** — seeded only for the demo
+  tenant (`demoSeed`). (Reports/Dashboard were already fixed in §4d; Reports gates all
+  sample data behind `demo ? seed : []`.)
+
+**Checklists (base product):** admin CRUD in the store — create / edit (add/remove/
+reorder items) / set frequency (daily · per-shift · weekly · custom) / assign
+facilities / delete. Empty state prompts admins to **Create** or **Start from
+examples** (`importExampleChecklists`, idempotent). Lifeguards run/complete
+(`checklists.complete`); only admins create/edit (`checklists.manage`).
+
+**Chemical logs (base product):** every reading now stores a **taken-at** timestamp
+(`ChemicalLog.takenAt`) separate from the audit `recordedAt`. The form has a date+time
+field defaulting to now, fully editable (backdating supported for catch-up entries);
+future timestamps are blocked (5-min tolerance), backdating > 14 days warns. History,
+trends, "readings today," pool-status and ordering all key off taken-at, formatted in
+the **tenant timezone** (`config.timezone`). DB column via `supabase/chem-taken-at.sql`.
+The empty state links to facility creation (`facilities.manage`).
+
+**Shift-report visibility (base product):** a lifeguard sees only their OWN reports
+(`can("shiftreports.review")` gates "see all"); admins/managers see all. Enforced
+**server-side** in `supabase/shift-reports-rls.sql` (select/insert/update scoped to
+`current_staff_id()` or a manager role) so a guard can't fetch another's report by id.
+
+**Role→landing mapping (base product, permission-driven):** `landingPathForRole(role)`
+returns the FIRST nav destination the role passes the permission gate for — so it's
+automatic for future roles, never a hardcoded per-role list, and never a page they
+can't view. Today that resolves to: **org_admin/super_admin → `/dashboard`**,
+**lifeguard → `/schedule`** (no `dashboard.view`), swim_instructor → `/schedule`
+(lessons), payroll_team → `/dashboard`, maintenance → `/maintenance`; ultimate fallback
+`/settings/security` (always accessible). Applied to the home button, post-login
+redirect, invite-accept, password-reset landing, and the "Access restricted" page's
+button (was a dead-end `/dashboard`).
+
+**Single-facility label (base product):** the facility switcher shows the pool's name
+(no "All Facilities", no dropdown) when the tenant has exactly one facility, the full
+switcher when it has several — automatic from the tenant's facility count.
+
+**Role switcher (base product):** already gated to the demo tenant
+(`{demoTenant && <RoleSwitcher />}`) and the demo login; the "Access restricted" page
+no longer tells real users to "switch roles from the top bar" (demo-only text).
+
+### Base product vs. Villas tenant-config (explicit split)
+- **Base product (shared, benefits every tenant):** the seed-fallback removals + empty
+  states; checklist store model + admin CRUD; chemical taken-at timestamp + date/time
+  form + timezone-aware display; the per-tenant `expectedReadingsPerDay` *setting* and
+  its "N of M today" hint; role-based `landingPathForRole`; single-facility switcher
+  behavior; demo-only gating of the role switcher; shift-report RLS scoping.
+- **Villas tenant-config only (no shared default):** `operations.expectedReadingsPerDay
+  = 3` (Villas tests three times a day — the base default is **unset**; other tenants
+  set their own). The example checklists remain the **demo** tenant's seed, offered to
+  any tenant only via opt-in "Start from examples."
+- **Tenant independence:** verified by tests — `default`/`tidetown` have no reading
+  cadence and behave correctly; a multi-facility tenant keeps "All Facilities"; a
+  single-facility tenant shows its name — all with no code changes.
+
 ## 5. Known pre-existing gaps (not introduced here, noted for honesty)
 
 - Authorization is UI-level in the app; RLS is the real boundary. This work does not change auth/RLS (per the "don't push destructive/auth changes while away" rule).

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Menu, Search, FlaskConical, LogOut } from "lucide-react";
-import { ALL_NAV_ITEMS, isDemoTenant } from "@poolops/shared";
+import { ALL_NAV_ITEMS, isDemoTenant, landingPathForRole } from "@poolops/shared";
 import { useAccess } from "@/lib/access";
 import { useSession } from "@/lib/session";
 import { useTenantConfig } from "@/lib/tenant/provider";
@@ -15,12 +15,14 @@ import { QuickActions } from "./quick-actions";
 import { SyncStatus } from "./sync-status";
 import { SchemeToggle } from "@/components/theme/scheme-toggle";
 
-/** Top-right brand home button: tenant icon + name, links to the tenant home. */
+/** Top-right brand home button: tenant icon + name, links to the user's role-
+ *  appropriate home (never a page they can't access). */
 function TenantHomeButton() {
   const config = useTenantConfig();
+  const { role } = useAccess();
   return (
     <Link
-      href="/dashboard"
+      href={landingPathForRole(role)}
       title={`${config.displayName} — home`}
       className="ml-1 flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-2 py-1.5 pr-3 transition-colors hover:border-brand-300 hover:bg-brand-50/40 dark:border-slate-700 dark:bg-slate-800/60 dark:hover:border-brand-500/50 dark:hover:bg-slate-800"
     >

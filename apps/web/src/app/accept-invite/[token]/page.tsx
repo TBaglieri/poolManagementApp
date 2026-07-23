@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle2, MailCheck, ArrowRight, Lock, AlertCircle, Loader2 } from "lucide-react";
-import { getRole, facilityName, type RoleSlug } from "@poolops/shared";
+import { getRole, facilityName, landingPathForRole, type RoleSlug } from "@poolops/shared";
 import { getEffectiveDataMode } from "@poolops/supabase";
 import { useInvites } from "@/lib/invites";
 import { signUp, signIn } from "@/lib/auth";
@@ -108,7 +108,9 @@ export default function AcceptInvitePage({ params }: { params: { token: string }
         const ut = await resolveUserTenant(newUserId);
         setStaffLink(ut.staffId, ut.staffLinked === true);
         if (ut.orgName) setRealOrg(ut.orgName, "small");
-        if (ut.slug) dest = `/${ut.slug}/dashboard`;
+        // Land invited staff (usually lifeguards) on a page they can access.
+        const home = landingPathForRole(ut.role ?? invite.role);
+        dest = ut.slug ? `/${ut.slug}${home}` : home;
       }
       setTimeout(() => router.push(dest), 1000);
     }

@@ -78,6 +78,12 @@ export const OperationsSchema = z.object({
   maxGuestsPerMember: z.number().int().nonnegative(),
   reservationSlotMinutes: z.number().int().positive(),
   chemicalUnit: z.string(),
+  /**
+   * Expected water-chemistry readings per day for THIS tenant (0/undefined = no
+   * target). Drives the "N of M readings today" hint — NEVER hardcode a count in
+   * shared code. Villas sets 3; another pool may set 1, 5, or leave it unset.
+   */
+  expectedReadingsPerDay: z.number().int().nonnegative().optional(),
   chemicalRanges: z.object({
     freeChlorine: Range,
     combinedChlorine: Range,

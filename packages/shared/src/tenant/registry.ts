@@ -141,6 +141,9 @@ export const TENANT_INPUTS: Record<string, TenantConfigInput> = {
       seasonEnd: "09-07",
       maxGuestsPerMember: 2,
       reservationSlotMinutes: 45,
+      // Villas tests its pool THREE times a day — a Villas config value, not a
+      // shared-code default. Other tenants set their own (or leave it unset).
+      expectedReadingsPerDay: 3,
     },
   },
 };

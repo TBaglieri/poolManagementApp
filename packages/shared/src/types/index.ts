@@ -430,6 +430,9 @@ export interface ChemicalLog {
   id: ID;
   facilityId: ID;
   poolId: ID;
+  /** When the reading was actually TAKEN (tenant-timezone aware, user-editable). */
+  takenAt?: ISODate;
+  /** When the record was created/logged (audit trail — set by the system). */
   recordedAt: ISODate;
   recordedBy: ID;
   freeChlorine: number;
@@ -458,13 +461,17 @@ export type ChecklistKind =
   | "first_aid_kit"
   | "weather_safety";
 
+export type ChecklistCadence = "daily" | "per_shift" | "weekly" | "custom";
+
 export interface ChecklistTemplate {
   id: ID;
   name: string;
   kind: ChecklistKind;
   facilityIds: ID[];
-  cadence: "daily" | "per_shift" | "weekly";
+  cadence: ChecklistCadence;
   items: ChecklistItem[];
+  /** Archived templates are hidden from the run list but keep their history. */
+  archived?: boolean;
 }
 
 export interface ChecklistCompletion {
