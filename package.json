@@ -20,6 +20,7 @@
     "create-admin": "tsx scripts/create-admin.ts",
     "link-staff-profiles": "tsx scripts/link-staff-profiles.ts",
     "review-invite-roles": "tsx scripts/review-invite-roles.ts",
+    "verify-setup": "tsx scripts/verify-setup.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test"

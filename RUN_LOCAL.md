@@ -77,6 +77,15 @@ npm run review-invite-roles -- --tenant villas
 npm run review-invite-roles -- --fix        # demote ONLY the flagged mismatches
 ```
 
+## 3f. Verify which migrations are applied
+
+```bash
+npm run verify-setup            # probes the live DB (tables/columns/Villas org)
+```
+For the parts the API can't see (RLS policies + the signup trigger), paste
+**`supabase/verify-setup.sql`** into the Supabase SQL Editor — it returns a ✓/✗ row
+per check, grouped by the file that creates it. Anything ✗ → run that file.
+
 ## 3e. Apply the additive SQL migrations (Supabase SQL Editor)
 
 Run these once (idempotent, safe to re-run) after `schema.sql` + `rls-policies.sql`:
