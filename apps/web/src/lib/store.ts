@@ -7,12 +7,13 @@ import {
   type MaintenanceIssue, type Message, type MessageKind, type Notification, type PatronCount,
   type RequestStatus, type ShiftReport, type ShiftTradeRequest, type TimeClockEntry,
   type TimeOffRequest, type IssueStatus, type MessageTemplateKey, type SubmissionStatus,
-  type OnboardingStepKey, type Shift, type ChecklistTemplate,
+  type OnboardingStepKey, type Shift, type ChecklistTemplate, type Facility, type Pool,
   channels as seedChannels, chemicalLogs as seedChem, checklistCompletions as seedChecklists,
   checklistTemplates as seedChecklistTemplates,
   maintenanceIssues as seedIssues, messages as seedMessages, notifications as seedNotifications,
   onboardingSubmissions as seedOnboarding, patronCounts as seedPatron, shiftReports as seedReports,
   shiftTradeRequests as seedTrades, shifts as seedShifts, timeClockEntries as seedClock, timeOffRequests as seedTimeOff,
+  facilities as seedFacilities, pools as seedPools, DEFAULT_CHEMICAL_RANGES,
 } from "@poolops/shared";
 import type { ScheduleDraft } from "@poolops/scheduling";
 import { repos, activeMode } from "./repos";
@@ -35,10 +36,8 @@ export interface PostOptions {
 const clone = <T,>(v: T): T =>
   typeof structuredClone === "function" ? structuredClone(v) : JSON.parse(JSON.stringify(v));
 
-function chemFlags(facilityId: ID, values: Record<string, number>): string[] {
-  const f = getFacility(facilityId);
-  if (!f) return [];
-  const r = f.chemicalRanges;
+/** Flag values outside the given ranges. Pure so it works for any facility source. */
+function chemFlagsFor(r: ChemicalRange, values: Record<string, number>): string[] {
   return (Object.keys(r) as (keyof ChemicalRange)[]).filter((k) => {
     const [min, max] = r[k];
     const v = values[k];
@@ -47,6 +46,18 @@ function chemFlags(facilityId: ID, values: Record<string, number>): string[] {
 }
 
 interface DemoState {
+  /**
+   * The tenant's facilities + pools live in the store (not just static seed data)
+   * so a facility created on the Facilities screen round-trips to every other
+   * screen — chem logs, checklists, schedules, shift reports, the switcher. EMPTY
+   * for a real tenant until one is added; the demo tenant is seeded with samples.
+   * (Root cause of the "created facility missing from Chemical Logs" bug — see
+   * AUDIT.md.)
+   */
+  facilities: Facility[];
+  pools: Pool[];
+  /** Create a facility (+ a default Main Pool so chem logging works immediately). */
+  addFacility: (input: Omit<Facility, "id">) => string;
   timeOff: TimeOffRequest[];
   trades: ShiftTradeRequest[];
   clock: TimeClockEntry[];
@@ -127,6 +138,7 @@ function demoSeed() {
     patron: clone(seedPatron), reports: clone(seedReports),
     notifications: clone(seedNotifications), onboarding: clone(seedOnboarding),
     channels: clone(seedChannels), shifts: clone(seedShifts),
+    facilities: clone(seedFacilities), pools: clone(seedPools),
   };
 }
 
@@ -149,9 +161,24 @@ export const useDemo = create<DemoState>((set, get) => ({
   drafts: [],
   shifts: [],
   scheduleSettings: { autoPostToAllTeam: true, allowStaffComments: true, notifyInApp: true, emailSms: false },
+  facilities: [],
+  pools: [],
   seeded: false,
 
   seedDemo: () => set((s) => (s.seeded ? {} : { ...demoSeed(), seeded: true })),
+
+  addFacility: (input) => {
+    const id = uid("fac");
+    const pool: Pool = {
+      id: uid("pool"), facilityId: id, name: "Main Pool",
+      poolType: input.poolType ?? "leisure", volumeGallons: 100000, maxDepthFt: 8,
+    };
+    set((s) => ({
+      facilities: [...s.facilities, { ...input, id }],
+      pools: [...s.pools, pool],
+    }));
+    return id;
+  },
 
   addDraft: (draft) => set((s) => ({ drafts: [draft, ...s.drafts.filter((d) => d.id !== draft.id)] })),
 
@@ -346,7 +373,11 @@ export const useDemo = create<DemoState>((set, get) => ({
       alkalinity: log.alkalinity, calciumHardness: log.calciumHardness,
       cyanuricAcid: log.cyanuricAcid, waterTemp: log.waterTemp,
     };
-    const flags = chemFlags(log.facilityId, values);
+    // Resolve ranges from the tenant's facility (store first, so a created facility
+    // works), then the static seed, then defaults — so out-of-range detection always
+    // runs, even for a facility added at runtime.
+    const facility = get().facilities.find((f) => f.id === log.facilityId) ?? getFacility(log.facilityId);
+    const flags = chemFlagsFor(facility?.chemicalRanges ?? DEFAULT_CHEMICAL_RANGES, values);
     const nowIso = new Date().toISOString();
     // The reading's taken-at time (defaults to now, user may backdate); recordedAt is
     // the audit/created time and is always "now".

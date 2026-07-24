@@ -10,6 +10,7 @@ import {
 } from "@poolops/shared";
 import { useAccess } from "@/lib/access";
 import { useTenantSeed } from "@/lib/tenant-data";
+import { useDemo } from "@/lib/store";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge } from "@/components/ui/badge";
@@ -22,8 +23,10 @@ import { cn } from "@/lib/cn";
 
 export default function FacilitiesPage() {
   const { can } = useAccess();
-  const { facilities, pools } = useTenantSeed();
-  const [list, setList] = useState<Facility[]>(facilities);
+  // Facilities come from (and are written to) the shared store, so a facility
+  // created here immediately appears in Chemical Logs, Checklists, the switcher, etc.
+  const { facilities: list, pools } = useTenantSeed();
+  const addFacilityToStore = useDemo((s) => s.addFacility);
   const [selected, setSelected] = useState<Facility | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [form, setForm] = useState({ name: "", address: "", capacity: "120", hours: "9:00 AM – 7:00 PM" });
@@ -34,15 +37,12 @@ export default function FacilitiesPage() {
 
   const addFacility = () => {
     if (!form.name.trim()) return;
-    setList((l) => [
-      ...l,
-      {
-        id: `fac_${Date.now()}`, orgId: "", name: form.name, address: form.address || "—",
-        poolType: "leisure", operatingHours: form.hours, capacity: Number(form.capacity) || 100,
-        emergencyPhone: "(555) 911-0000", status: "open",
-        chemicalRanges: DEFAULT_CHEMICAL_RANGES, inspectionRequired: true, imageHint: "from-cyan-500 to-blue-600",
-      },
-    ]);
+    addFacilityToStore({
+      orgId: "", name: form.name.trim(), address: form.address || "—",
+      poolType: "leisure", operatingHours: form.hours, capacity: Number(form.capacity) || 100,
+      emergencyPhone: "(555) 911-0000", status: "open",
+      chemicalRanges: DEFAULT_CHEMICAL_RANGES, inspectionRequired: true, imageHint: "from-cyan-500 to-blue-600",
+    });
     setAddOpen(false);
     setForm({ name: "", address: "", capacity: "120", hours: "9:00 AM – 7:00 PM" });
   };

@@ -605,3 +605,45 @@ non-unique. `supabase/organizations-slug-constraint.sql` makes it **`NOT NULL` +
 `42P10` a prior attempt hit). `scripts/seed-villas.ts` upserts `ON CONFLICT (slug)` and
 now refuses to run if the resolved config has no slug. `scripts/check-org-slugs.ts`
 reports any null/duplicate slugs or memberships pointing at unresolvable orgs.
+
+---
+
+## 7. Created facility missing from Chemical Logs (2026-07-24)
+
+**Symptom.** A facility added through the Facilities screen did not appear in Chemical
+Logs — the facility selector was empty and the screen showed "No chemical readings
+logged yet — Add a facility first."
+
+**Root cause (not a caching or org-id issue).** Facility creation wrote the new
+facility into the Facilities page's own **local React `useState`** and nowhere else.
+Every other screen reads facilities from `useTenantSeed()`, which was **static** —
+the demo dataset for the demo tenant, empty arrays for a real tenant — with **no
+runtime "add facility" path into any shared store.** So the created facility lived
+only inside the Facilities component: invisible to Chemical Logs, the facility
+switcher, checklists, schedules, and shift reports, and gone on refresh. It was not
+the candidate causes (org-id mismatch, status/`is_active` filter, pools-vs-facilities
+table, refetch) — it was that creation never reached a shared source of truth.
+
+A second, latent bug in the same area: `chemFlags` resolved each facility's chemical
+ranges from the **static seed** via `getFacility()`, so a reading logged against a
+runtime-created facility could **never** be flagged out of range (the seed has no such
+facility).
+
+**Fix.** Facilities + pools now live in the shared `useDemo` store with an
+`addFacility()` action (which also creates a default "Main Pool"). `useTenantSeed()`
+overlays the store's facilities/pools, so a created facility appears everywhere at
+once. `addChemicalLog()` resolves ranges from the store facility → static seed →
+defaults, so out-of-range detection works for created facilities. See
+`store-integration.test.ts`. The deeper structural gap this exposed — reference data
+(facilities, staff, …) is never loaded from Supabase, and several writes don't persist
+to the DB — is mapped in `FEATURE_AUDIT.md`.
+
+**Single-facility handling.** Villas has one pool, so a facility *chooser* is noise.
+Driven purely off `facilities.length` (`lib/facility-select.ts`, no per-tenant
+hardcoding, capability kept for multi-facility tenants):
+- **Exactly one facility** → auto-selected everywhere; the picker is hidden (facility
+  switcher shows just the pool name; Chemical Logs hides the facility field in the log
+  modal and the trend selector, auto-attaching the reading).
+- **More than one** → the picker shows as before.
+Extending the same helper to the checklist / shift-report / schedule forms is a listed
+follow-up in `FEATURE_AUDIT.md`.

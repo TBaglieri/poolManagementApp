@@ -4,14 +4,16 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { FlaskConical, AlertTriangle, CheckCircle2, Beaker } from "lucide-react";
 import {
-  getFacility, staffName, facilityName,
+  getFacility, staffName,
   CHEMICAL_FIELDS, type ChemicalLog,
 } from "@poolops/shared";
 import { useAccess, useMyStaffId } from "@/lib/access";
 import { useDemo } from "@/lib/store";
-import { useTenantSeed } from "@/lib/tenant-data";
+import { useTenantSeed, useFacilityNames } from "@/lib/tenant-data";
 import { useTenantConfig } from "@/lib/tenant/provider";
 import { useThemeColor } from "@/lib/tenant/use-theme-color";
+import { resolveFacilityChoice, defaultFacilityId } from "@/lib/facility-select";
+import { cn } from "@/lib/cn";
 
 /** The reading's taken-at time (falls back to the audit time for legacy rows). */
 const takenOf = (c: { takenAt?: string; recordedAt: string }) => c.takenAt ?? c.recordedAt;
@@ -51,6 +53,9 @@ export default function ChemicalsPage() {
   const { can, staff: me, facilityId } = useAccess();
   const myStaffId = useMyStaffId();
   const { facilities, pools } = useTenantSeed();
+  const facName = useFacilityNames();
+  // Single-facility tenant → auto-select it and hide facility pickers entirely.
+  const { autoSelected: singleFacility, only: soleFacility } = resolveFacilityChoice(facilities);
   const config = useTenantConfig();
   const tz = config.timezone || "America/New_York";
   const expectedPerDay = config.operations.expectedReadingsPerDay; // per-tenant; Villas=3, others may be unset
@@ -84,12 +89,14 @@ export default function ChemicalsPage() {
   });
   const closures = poolStatus.filter((p) => p.critical.length > 0);
 
+  // Single-facility tenants have no chart picker → always chart the sole facility.
+  const effChartFacility = singleFacility ? soleFacility!.id : (chartFacility || facilities[0]?.id || "");
   const chartData = useMemo(() => chemicals
-    .filter((c) => c.facilityId === chartFacility)
+    .filter((c) => c.facilityId === effChartFacility)
     .slice().sort((a, b) => new Date(takenOf(a)).getTime() - new Date(takenOf(b)).getTime())
     .slice(-8)
     .map((c) => ({ t: fmtInTz(takenOf(c), tz, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }), FC: c.freeChlorine, CC: c.combinedChlorine, pH: c.ph })),
-    [chemicals, chartFacility, tz]);
+    [chemicals, effChartFacility, tz]);
 
   const facilityPools = pools.filter((p) => p.facilityId === form.facilityId);
 
@@ -111,12 +118,22 @@ export default function ChemicalsPage() {
     setResult(flags);
   };
 
+  // Open the log modal with the right facility/pool preselected (auto for a single-
+  // facility tenant, current-or-first otherwise) so the picker is never a dead end.
+  const openLogModal = () => {
+    const fid = defaultFacilityId(facilities, form.facilityId);
+    const pid = pools.find((p) => p.facilityId === fid)?.id ?? "";
+    setForm((f) => ({ ...f, facilityId: fid, poolId: pid, takenAt: toLocalInput(new Date()) }));
+    setResult(null);
+    setOpen(true);
+  };
+
   const closeModal = () => { setOpen(false); setResult(null); setForm((f) => ({ ...f, takenAt: toLocalInput(new Date()) })); };
 
   return (
     <div className="space-y-6">
       <PageHeader title="Chemical Logs" subtitle="Record water chemistry and keep an audit-ready history."
-        actions={can("chemicals.log") && facilities.length > 0 && <Button icon="FlaskConical" onClick={() => setOpen(true)}>Log reading</Button>} />
+        actions={can("chemicals.log") && facilities.length > 0 && <Button icon="FlaskConical" onClick={openLogModal}>Log reading</Button>} />
 
       {facilities.length === 0 && (
         <EmptyState icon="FlaskConical" title="No chemical readings logged yet"
@@ -167,12 +184,12 @@ export default function ChemicalsPage() {
 
       {warnings.length > 0 && (
         <AlertCard intent="danger" title={`${warnings.length} reading(s) out of range`}>
-          Most recent: {facilityName(warnings[0].facilityId)} — {warnings[0].outOfRange.map((k) => FIELD_LABEL[k] ?? k).join(", ")}. {warnings[0].correctiveAction ?? "Corrective action recommended."}
+          Most recent: {facName(warnings[0].facilityId)} — {warnings[0].outOfRange.map((k) => FIELD_LABEL[k] ?? k).join(", ")}. {warnings[0].correctiveAction ?? "Corrective action recommended."}
         </AlertCard>
       )}
 
       <SectionCard title="Chlorine & pH trend" subtitle="Recent readings"
-        actions={<Select value={chartFacility} onChange={(e) => setChartFacility(e.target.value)} className="w-auto">{facilities.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</Select>}>
+        actions={!singleFacility && <Select value={chartFacility} onChange={(e) => setChartFacility(e.target.value)} className="w-auto">{facilities.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</Select>}>
         {chartData.length > 0 ? (
           <MultiLine data={chartData} xKey="t" lines={[
             // Free chlorine tracks the tenant brand; CC/pH are distinct series colors.
@@ -197,7 +214,7 @@ export default function ChemicalsPage() {
               {visible.slice(0, 12).map((c) => (
                 <tr key={c.id}>
                   <td className="px-3 py-2.5">
-                    <p className="font-medium text-slate-700">{facilityName(c.facilityId)}</p>
+                    <p className="font-medium text-slate-700">{facName(c.facilityId)}</p>
                     {c.outOfRange.length > 0 && <Badge intent="danger" className="mt-0.5"><AlertTriangle className="h-3 w-3" /> {c.outOfRange.length} flagged</Badge>}
                   </td>
                   {CHEMICAL_FIELDS.map((f) => {
@@ -218,10 +235,20 @@ export default function ChemicalsPage() {
           : <Button onClick={closeModal}>Done</Button>}>
         {result === null ? (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Facility"><Select value={form.facilityId} onChange={(e) => { const fid = e.target.value; setForm({ ...form, facilityId: fid, poolId: pools.find((p) => p.facilityId === fid)?.id ?? form.poolId }); }}>{facilities.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</Select></Field>
-              <Field label="Pool / body"><Select value={form.poolId} onChange={(e) => setForm({ ...form, poolId: e.target.value })}>{facilityPools.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></Field>
-            </div>
+            {/* Facility picker is hidden entirely for a single-facility tenant — the
+                reading auto-attaches to the only pool. Multi-facility shows it. */}
+            {singleFacility ? (
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Logging for <span className="font-semibold text-slate-800 dark:text-slate-200">{soleFacility!.name}</span>.
+              </p>
+            ) : (
+              <div className={cn("grid gap-4", facilityPools.length > 1 ? "grid-cols-2" : "grid-cols-1")}>
+                <Field label="Facility"><Select value={form.facilityId} onChange={(e) => { const fid = e.target.value; setForm({ ...form, facilityId: fid, poolId: pools.find((p) => p.facilityId === fid)?.id ?? form.poolId }); }}>{facilities.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</Select></Field>
+                {facilityPools.length > 1 && (
+                  <Field label="Pool / body"><Select value={form.poolId} onChange={(e) => setForm({ ...form, poolId: e.target.value })}>{facilityPools.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></Field>
+                )}
+              </div>
+            )}
             <Field label="Date & time taken" hint={`Defaults to now (${tz}). Edit to log an earlier reading or catch up a missed entry.`}>
               <Input type="datetime-local" value={form.takenAt} onChange={(e) => setForm({ ...form, takenAt: e.target.value })} />
             </Field>
