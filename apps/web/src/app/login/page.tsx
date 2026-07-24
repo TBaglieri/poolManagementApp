@@ -101,14 +101,18 @@ export default function LoginPage() {
       <div className="flex w-full flex-col justify-center px-6 py-10 lg:w-1/2 lg:px-16">
         <div className="mx-auto w-full max-w-md">
           <Link href="/"><TenantWordmark size="md" /></Link>
-          <h1 className="mt-10 text-2xl font-bold text-slate-900">{mode === "signup" ? "Create your account" : "Welcome back"}</h1>
+          {/* Say which surface this is — a branded tenant portal vs the PoolOps platform. */}
+          <p className="eyebrow mt-9">{tenantScoped ? `${config.displayName} · staff portal` : "PoolOps Pro platform"}</p>
+          <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-slate-900">{mode === "signup" ? "Create your account" : "Welcome back"}</h1>
           <p className="mt-1.5 text-sm text-slate-500">
-            {supabaseMode ? "Sign in with Supabase Auth to your aquatics workspace." : "Sign in to your aquatics operations workspace."}
+            {tenantScoped
+              ? "Sign in to your pool's workspace."
+              : "Sign in to manage your aquatics operations."}
           </p>
 
           {supabaseMode && (
             <div className="mt-4 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
-              <Database className="h-3.5 w-3.5" /> Supabase mode — real authentication
+              <Database className="h-3.5 w-3.5" /> Secure sign-in
             </div>
           )}
 

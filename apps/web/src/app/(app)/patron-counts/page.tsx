@@ -70,7 +70,7 @@ export default function PatronCountsPage() {
           }
         >
           {chartData.length === 0 ? (
-            <p className="py-12 text-center text-sm text-slate-400">No counts recorded today for this facility.</p>
+            <p className="py-12 text-center text-sm text-slate-500">No counts logged today. Record one below to start today&apos;s attendance trend.</p>
           ) : (
             <SimpleBar data={chartData} xKey="time" yKey="count" name="Patrons" height={260} />
           )}

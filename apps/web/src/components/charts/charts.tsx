@@ -4,9 +4,12 @@ import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
+import { useThemeColor } from "@/lib/tenant/use-theme-color";
 
 const AXIS = { fontSize: 11, fill: "#94a3b8" } as const;
 const GRID = "#eef2f6";
+/** Sentinel: caller wants the tenant brand color (resolved at runtime, not hardcoded). */
+const BRAND = "brand";
 
 function ChartTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
@@ -24,10 +27,12 @@ function ChartTooltip({ active, payload, label }: any) {
 }
 
 export function TrendArea({
-  data, xKey, yKey, color = "#0891B2", height = 220, name = "Value",
+  data, xKey, yKey, color = BRAND, height = 220, name = "Value",
 }: {
   data: any[]; xKey: string; yKey: string; color?: string; height?: number; name?: string;
 }) {
+  const brand = useThemeColor("--brand-600", "#0891B2");
+  if (color === BRAND) color = brand;
   return (
     <ResponsiveContainer width="100%" height={height}>
       <AreaChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
@@ -68,10 +73,12 @@ export function MultiLine({
 }
 
 export function SimpleBar({
-  data, xKey, yKey, color = "#0891B2", height = 220, name = "Value",
+  data, xKey, yKey, color = BRAND, height = 220, name = "Value",
 }: {
   data: any[]; xKey: string; yKey: string; color?: string; height?: number; name?: string;
 }) {
+  const brand = useThemeColor("--brand-600", "#0891B2");
+  if (color === BRAND) color = brand;
   return (
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>

@@ -11,6 +11,7 @@ import { useAccess, useMyStaffId } from "@/lib/access";
 import { useDemo } from "@/lib/store";
 import { useTenantSeed } from "@/lib/tenant-data";
 import { useTenantConfig } from "@/lib/tenant/provider";
+import { useThemeColor } from "@/lib/tenant/use-theme-color";
 
 /** The reading's taken-at time (falls back to the audit time for legacy rows). */
 const takenOf = (c: { takenAt?: string; recordedAt: string }) => c.takenAt ?? c.recordedAt;
@@ -55,6 +56,7 @@ export default function ChemicalsPage() {
   const expectedPerDay = config.operations.expectedReadingsPerDay; // per-tenant; Villas=3, others may be unset
   const chemicals = useDemo((s) => s.chemicals);
   const addLog = useDemo((s) => s.addChemicalLog);
+  const brandLine = useThemeColor("--brand-600", "#0891B2");
 
   const [open, setOpen] = useState(false);
   const [chartFacility, setChartFacility] = useState(facilities[0]?.id ?? "");
@@ -173,7 +175,8 @@ export default function ChemicalsPage() {
         actions={<Select value={chartFacility} onChange={(e) => setChartFacility(e.target.value)} className="w-auto">{facilities.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</Select>}>
         {chartData.length > 0 ? (
           <MultiLine data={chartData} xKey="t" lines={[
-            { key: "FC", color: "#0891B2", name: "Free Cl" },
+            // Free chlorine tracks the tenant brand; CC/pH are distinct series colors.
+            { key: "FC", color: brandLine, name: "Free Cl" },
             { key: "CC", color: "#f59e0b", name: "Comb. Cl" },
             { key: "pH", color: "#6366f1", name: "pH" },
           ]} />

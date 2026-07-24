@@ -22,8 +22,8 @@ export function SectionCard({
           <div className="flex items-center gap-2.5 min-w-0">
             {icon}
             <div className="min-w-0">
-              {title && <h2 className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{title}</h2>}
-              {subtitle && <p className="truncate text-xs text-slate-400 dark:text-slate-500">{subtitle}</p>}
+              {title && <h2 className="card-title truncate">{title}</h2>}
+              {subtitle && <p className="caption truncate">{subtitle}</p>}
             </div>
           </div>
           {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}

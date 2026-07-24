@@ -74,7 +74,7 @@ export default function ReportsPage() {
           {patronTrend.length > 0 ? (
             <TrendArea data={patronTrend} xKey="day" yKey="count" name="Peak patrons" height={240} />
           ) : (
-            <p className="py-16 text-center text-sm text-slate-400">No patron data yet.</p>
+            <p className="py-16 text-center text-sm text-slate-500">This chart fills in as your team logs patron counts. Start from Patron Counts.</p>
           )}
         </SectionCard>
         <SectionCard title="Coverage by facility" subtitle="Filled vs total shifts">

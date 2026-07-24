@@ -192,7 +192,7 @@ export default function SchedulePage() {
 
           <SectionCard title="My shifts" subtitle={`Week of ${formatShortDate(days[0])}`}>
             {myShifts.length === 0 ? (
-              <p className="py-8 text-center text-sm text-slate-400">No shifts scheduled this week.</p>
+              <p className="py-8 text-center text-sm text-slate-500">No shifts scheduled this week yet — your manager will publish them here.</p>
             ) : (
               <ul className="divide-y divide-slate-100">
                 {myShifts.map((s) => (
