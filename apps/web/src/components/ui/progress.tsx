@@ -2,8 +2,8 @@ import { cn } from "@/lib/cn";
 import type { Intent } from "@/lib/status";
 
 const BAR: Record<Intent, string> = {
-  success: "bg-emerald-500", warning: "bg-amber-500", danger: "bg-rose-500",
-  info: "bg-sky-500", neutral: "bg-slate-400", brand: "bg-brand-600",
+  success: "bg-emerald-600", warning: "bg-amber-600", danger: "bg-rose-600",
+  info: "bg-sky-600", neutral: "bg-slate-400", brand: "bg-brand-600",
 };
 
 export function ProgressBar({

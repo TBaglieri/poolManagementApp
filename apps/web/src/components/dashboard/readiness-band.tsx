@@ -29,9 +29,9 @@ export interface ReadinessSegment {
 }
 
 const RAIL: Record<SegState, string> = {
-  ok: "bg-emerald-500",
-  warn: "bg-amber-500",
-  danger: "bg-rose-500",
+  ok: "bg-emerald-600",
+  warn: "bg-amber-600",
+  danger: "bg-rose-600",
   neutral: "bg-slate-300 dark:bg-slate-600",
 };
 const VALUE_TONE: Record<SegState, string> = {

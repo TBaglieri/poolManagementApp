@@ -227,7 +227,10 @@ export default function ChemicalsPage() {
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {CHEMICAL_FIELDS.map((f) => (
                 <Field key={f.key} label={`${f.short} ${f.unit ? `(${f.unit})` : ""}`}>
-                  <Input type="number" step="0.1" value={(form as Record<string, string>)[f.key]} onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} />
+                  {/* Decimal keypad + larger target: fast, low-typing entry on a phone. */}
+                  <Input type="number" inputMode="decimal" step="0.1" value={(form as Record<string, string>)[f.key]}
+                    onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                    className="py-2.5 text-base tabular-nums" />
                 </Field>
               ))}
             </div>

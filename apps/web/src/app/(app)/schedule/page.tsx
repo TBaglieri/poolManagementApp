@@ -20,6 +20,7 @@ import { StatusBadge } from "@/components/ui/badge";
 import { PermissionGate } from "@/components/ui/permission-gate";
 import { requestStatusMeta } from "@/lib/status";
 import { StaffRequestButtons } from "@/components/schedule/staff-requests";
+import { GuardActionPad } from "@/components/schedule/guard-action-pad";
 import { cn } from "@/lib/cn";
 
 const FAC_COLOR: Record<string, string> = {
@@ -146,7 +147,7 @@ export default function SchedulePage() {
                   <ul className="space-y-2.5">
                     {pendingTimeOff.map((r) => (
                       <li key={r.id} className="flex items-center gap-3 rounded-lg border border-slate-100 p-2.5">
-                        <StaffAvatar name={staffName(r.staffId)} color={getStaff(r.staffId)?.avatarColor ?? "#0E7490"} size="sm" />
+                        <StaffAvatar name={staffName(r.staffId)} color={getStaff(r.staffId)?.avatarColor ?? "rgb(var(--brand-700))"} size="sm" />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-medium text-slate-800">{staffName(r.staffId)}</p>
                           <p className="truncate text-xs text-slate-400">{r.type} · {formatShortDate(r.startDate)} · {r.reason}</p>
@@ -163,7 +164,7 @@ export default function SchedulePage() {
                   <ul className="space-y-2.5">
                     {pendingTrades.map((t) => (
                       <li key={t.id} className="flex items-center gap-3 rounded-lg border border-slate-100 p-2.5">
-                        <StaffAvatar name={staffName(t.requestedBy)} color={getStaff(t.requestedBy)?.avatarColor ?? "#0E7490"} size="sm" />
+                        <StaffAvatar name={staffName(t.requestedBy)} color={getStaff(t.requestedBy)?.avatarColor ?? "rgb(var(--brand-700))"} size="sm" />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-medium text-slate-800">{staffName(t.requestedBy)}</p>
                           <p className="truncate text-xs text-slate-400">{t.requestedTo ? `→ ${staffName(t.requestedTo)}` : "Open to anyone"} · {t.reason}</p>
@@ -179,8 +180,10 @@ export default function SchedulePage() {
           </PermissionGate>
         </>
       ) : (
-        /* Staff: My Schedule */
+        /* Staff: My Schedule — a focused guard home, not the admin view minus items. */
         <>
+          <GuardActionPad />
+
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             <StatCard label="My shifts this week" value={myShifts.length} icon="CalendarDays" intent="brand" />
             <StatCard label="My hours" value={Math.round(myShifts.reduce((s, sh) => s + shiftDuration(sh.start, sh.end), 0))} icon="Clock" intent="info" />

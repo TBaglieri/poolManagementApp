@@ -16,13 +16,15 @@ export const INTENT_CLASSES: Record<Intent, string> = {
   brand: "bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-600/20",
 };
 
+// Solid status indicators use -600 weights: they read clearly on a bright phone in
+// sunlight, where the lighter -500s wash out. Badge/alert text stays -700 (AA on tint).
 export const INTENT_DOT: Record<Intent, string> = {
-  success: "bg-emerald-500",
-  warning: "bg-amber-500",
-  danger: "bg-rose-500",
-  info: "bg-sky-500",
+  success: "bg-emerald-600",
+  warning: "bg-amber-600",
+  danger: "bg-rose-600",
+  info: "bg-sky-600",
   neutral: "bg-slate-400",
-  brand: "bg-brand-500",
+  brand: "bg-brand-600",
 };
 
 export interface StatusMeta {

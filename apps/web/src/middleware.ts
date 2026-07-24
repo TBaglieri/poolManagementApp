@@ -23,6 +23,10 @@ const CUSTOM_DOMAINS: Record<string, string> = {
 };
 
 function hasDemoAccess(req: NextRequest): boolean {
+  // Local-dev convenience: in mock mode (no real backend) the gated demo is open so
+  // `npm run dev` needs no token or password. Real (supabase) deployments are
+  // unaffected and still require the secret token.
+  if ((process.env.NEXT_PUBLIC_DATA_MODE || "").toLowerCase() !== "supabase") return true;
   return req.cookies.get("demo_access")?.value === DEMO_ACCESS_TOKEN;
 }
 

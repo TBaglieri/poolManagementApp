@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, Search, FlaskConical, LogOut } from "lucide-react";
+import { Menu, FlaskConical, LogOut } from "lucide-react";
 import { ALL_NAV_ITEMS, isDemoTenant, landingPathForRole } from "@poolops/shared";
 import { useAccess } from "@/lib/access";
 import { useSession } from "@/lib/session";
@@ -64,14 +64,6 @@ export function Topbar({ onOpenSidebar }: { onOpenSidebar: () => void }) {
       </button>
 
       <h1 className="truncate text-base font-semibold text-slate-900 dark:text-slate-100 sm:text-lg">{pageTitle(pathname)}</h1>
-
-      <div className="relative ml-2 hidden max-w-xs flex-1 md:block">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-        <input
-          placeholder="Search staff, shifts, facilities…"
-          className="w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-9 pr-3 text-sm focus:border-brand-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/15"
-        />
-      </div>
 
       <div className="ml-auto flex items-center gap-2">
         {demoTenant && (
