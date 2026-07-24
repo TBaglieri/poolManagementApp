@@ -26,6 +26,14 @@
   --navy-300: 127 158 197; --navy-400: 80 118 168;  --navy-500: 52 90 140;
   --navy-600: 40 72 114;   --navy-700: 34 60 94;    --navy-800: 22 39 61;
   --navy-900: 15 29 46;    --navy-950: 10 21 33;
+
+  /* accent — highlight only, never status. Default equals the original teal so an
+     un-themed build is unchanged; each tenant's real accent is injected on top
+     (e.g. Villas' warm sandstone). See resolveThemeVars(). */
+  --accent-50: 236 254 255;  --accent-100: 207 250 254; --accent-200: 165 243 252;
+  --accent-300: 103 232 249; --accent-400: 34 211 238;  --accent-500: 6 182 212;
+  --accent-600: 8 145 178;   --accent-700: 14 116 144;  --accent-800: 21 94 117;
+  --accent-900: 22 78 99;    --accent-950: 8 51 68;
 }
 
 @layer base {
@@ -83,6 +91,29 @@
   .chip {
     @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium;
   }
+
+  /* ── Type scale ──────────────────────────────────────────────────────────
+     A real hierarchy with intentional jumps, so section labels, titles, metrics
+     and helper text never read at the same weight. Used across the design system;
+     see DESIGN.md. Tabular figures keep scanned numbers aligned and jitter-free. */
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400;
+  }
+  .metric {
+    @apply text-3xl font-bold tracking-tight text-slate-900 tabular-nums dark:text-slate-50;
+    font-feature-settings: "tnum", "cv11", "ss01";
+  }
+  .metric-sm {
+    @apply text-2xl font-bold tracking-tight text-slate-900 tabular-nums dark:text-slate-50;
+    font-feature-settings: "tnum", "cv11", "ss01";
+  }
+  .card-title {
+    @apply text-sm font-semibold text-slate-800 dark:text-slate-100;
+  }
+  .caption {
+    @apply text-xs text-slate-500 dark:text-slate-400;
+  }
+  .tnum { font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; }
   /* Skeleton loader with a moving shimmer, matched to real content shape. */
   .skeleton {
     @apply relative overflow-hidden rounded-md bg-slate-200/70;

@@ -77,10 +77,15 @@ export function resolveThemeVars(config: TenantConfig): ResolvedTheme {
   const brandRaw = scaleFrom(t.brand, t.brandScale);
   const { scale: brand, checks, warnings } = ensureAccessible(brandRaw);
   const navy = scaleFrom(t.secondary, t.navyScale);
+  // Accent (the tenant's highlight color, e.g. Villas' sandstone). Previously
+  // parsed but never emitted — so components had no accent token to use. Derived
+  // as a full 50–950 scale so it participates in the design system like brand/navy.
+  const accent = scaleFrom(t.accent);
 
   const vars: ThemeVars = {
     ...scaleToVars("brand", brand),
     ...scaleToVars("navy", navy),
+    ...scaleToVars("accent", accent),
     ...RADIUS_VARS[t.radius],
     "--font-brand": config.branding.fontFamily,
     ...t.customVars,

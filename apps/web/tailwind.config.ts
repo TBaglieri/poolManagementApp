@@ -23,6 +23,7 @@ const config: Config = {
       colors: {
         brand: tokenScale("brand"),
         navy: tokenScale("navy"),
+        accent: tokenScale("accent"),
       },
       fontFamily: {
         sans: [
