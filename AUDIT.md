@@ -523,3 +523,85 @@ no longer tells real users to "switch roles from the top bar" (demo-only text).
 - `.env.local` historically mislabeled a secret key — see memory; unchanged here, not touched.
 
 See `DECISIONS.md` for the architecture chosen and every judgment call made while running unattended.
+
+---
+
+## 6. Root/main login routed a tenant user into the PLATFORM context (2026-07-24)
+
+**Symptom.** Signing in at `/villas/login` lands correctly in the Villas tenant.
+Signing in at the **root/main login** (`/login`) with the *same* clean account lands
+in the **PoolOps Pro platform** context — platform nav, and modules Villas disabled
+(Inspections, Patron Counts, Programs/Lessons) visible. The DB was verified clean
+(exactly one active `organization_members` row on the `villas` org); this is **not**
+a data problem. Two prior fixes touched only the tenant path, so it kept "coming back."
+
+### 6a. Where the destination is actually decided (the trace)
+
+Both URLs render the **same** client component `apps/web/src/app/login/page.tsx`
+(there is no `[tenant]/login` route — `/villas/login` is produced by the middleware
+stripping the `/villas` prefix, `apps/web/src/middleware.ts:108`). The handler
+`handleAuth` already calls `resolveUserTenant()` and `router.push('/villas/…')`, so
+the *URL* it navigates to is correct in **both** cases. The bug is not the redirect
+target — it's the **client tenant context that renders after it**.
+
+The active tenant config for the whole client tree comes from **one** place:
+`RootLayout` (`apps/web/src/app/layout.tsx:32-52`) resolves the tenant server-side
+(`getServerTenantConfig()`) and seeds `<TenantProvider initialConfig=… slug=…>`.
+Everything downstream — the sidebar, the module gate in `AppShell`
+(`components/shell/app-shell.tsx:59-62`), and even the role reconciliation in
+`SupabaseSessionSync` (`components/shell/supabase-session-sync.tsx:46`,
+`resolveAssignedRole(config, …)`) — reads that provider's `config`.
+
+`RootLayout` is the **root** layout. In the Next.js App Router a root layout runs on
+the initial server render and is **preserved across client-side (soft) navigations**;
+it does **not** re-run. So `initialConfig` is captured **once, from the context of the
+first page load**, and never re-seeded by a `router.push`.
+
+### 6b. Why that diverges by entry point (the root cause)
+
+- Initial load of **`/villas/login`**: middleware resolves `source=path`, sets
+  `x-tenant-slug=villas` → `RootLayout` seeds the provider with the **Villas** config.
+  `router.push('/villas/dashboard')` is a soft nav → provider stays Villas. ✅
+- Initial load of **`/login`**: middleware marks it a platform path and sets
+  `x-platform=1` (`middleware.ts:73-78`) → `RootLayout` seeds the provider with
+  **`PLATFORM_CONFIG`**. `router.push('/villas/dashboard')` is a soft nav → the root
+  layout is preserved → the provider **stays `PLATFORM_CONFIG`**. The URL is now
+  `/villas/dashboard` and the *server components* under it are Villas-scoped, but the
+  *client* nav / module-gate / role resolution all still read `PLATFORM_CONFIG`. ❌
+
+`PLATFORM_CONFIG` enables every module and every role, which is exactly why the
+disabled Villas modules reappear and platform nav shows. This is a pure client
+context-staleness bug across a soft navigation, which is why it never reproduced on
+the tenant login (whose provider was already Villas) and why redirect-only "fixes"
+looked like they worked.
+
+A second, smaller instance of the same root cause: `handleAuth` computed
+`resolveAssignedRole(config, ut.role)` against the **login page's** config
+(`PLATFORM_CONFIG` on root login) instead of the **target tenant's** config, so the
+role could also resolve wrong on the root path.
+
+### 6c. How both paths now share ONE resolution
+
+- Post-auth routing is now a single pure decision — `postAuthDestination()` in
+  `packages/shared/src/tenant/post-auth.ts` — consulted by **every** login entry
+  point. It reads the user's **active** `organization_members` and returns: the one
+  tenant to enter (with a role-appropriate landing computed against **that tenant's**
+  config), a **tenant picker** (2+ memberships), a **platform** context (platform
+  account), or a **no-access** state (0 memberships, not platform) — never a silent
+  platform fallback.
+- The login handler navigates into a resolved tenant with a **hard** navigation
+  (`window.location.assign`), not `router.push`. A full document load makes
+  `RootLayout` re-run server-side under the tenant's path, so the provider is
+  re-seeded with the tenant config, the SSR theme is the tenant's, and
+  `SupabaseSessionSync` reconciles the role against the tenant config. The result of
+  root login is now **identical** to loading the tenant URL directly — i.e. identical
+  to `/villas/login` — because both end in the same full load of `/villas/<landing>`.
+
+### 6d. Preventing the original data corruption from recurring
+
+The null-slug duplicate org was possible because `organizations.slug` was nullable and
+non-unique. `supabase/organizations-slug-constraint.sql` makes it **`NOT NULL` +
+`UNIQUE`** (adding the unique constraint *before* any conflicting upsert to avoid the
+`42P10` a prior attempt hit). `scripts/seed-villas.ts` upserts `ON CONFLICT (slug)` and
+now refuses to run if the resolved config has no slug. `scripts/check-org-slugs.ts`
+reports any null/duplicate slugs or memberships pointing at unresolvable orgs.

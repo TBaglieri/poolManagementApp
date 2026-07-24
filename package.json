@@ -21,6 +21,7 @@
     "link-staff-profiles": "tsx scripts/link-staff-profiles.ts",
     "review-invite-roles": "tsx scripts/review-invite-roles.ts",
     "verify-setup": "tsx scripts/verify-setup.ts",
+    "check-org-slugs": "tsx scripts/check-org-slugs.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test"

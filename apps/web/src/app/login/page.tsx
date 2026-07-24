@@ -4,13 +4,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, Monitor, Smartphone, Mail, Lock, Check, Loader2, AlertCircle, Database } from "lucide-react";
-import { ROLE_LIST, getRole, isDemoTenant, isPlatformSlug, resolveAssignedRole, landingPathForRole, type RoleSlug } from "@poolops/shared";
+import { ROLE_LIST, getRole, isDemoTenant, isPlatformSlug, postAuthDestination, type RoleSlug, type TenantChoice } from "@poolops/shared";
 import { getEffectiveDataMode } from "@poolops/supabase";
 import { useSession } from "@/lib/session";
 import { useTenantConfig } from "@/lib/tenant/provider";
 import { allowsDemoLoginFallback } from "@/lib/demo-mode";
-import { resolveUserTenant } from "@/lib/tenant/user-tenant";
-import { signIn } from "@/lib/auth";
+import { resolveUserMemberships } from "@/lib/tenant/user-tenant";
+import { signIn, signOut } from "@/lib/auth";
 import { TenantWordmark } from "@/components/theme/tenant-brand";
 import { RoleBadge } from "@/components/ui/badge";
 
@@ -23,10 +23,6 @@ const FEATURED: RoleSlug[] = ["org_admin", "lifeguard", "lifeguard_manager", "pa
 export default function LoginPage() {
   const router = useRouter();
   const enterDemo = useSession((s) => s.enterDemo);
-  const loginReal = useSession((s) => s.loginReal);
-  const setUserName = useSession((s) => s.setUserName);
-  const setStaffLink = useSession((s) => s.setStaffLink);
-  const setRealOrg = useSession((s) => s.setRealOrg);
   const config = useTenantConfig();
   const isDemo = isDemoTenant(config);
   const supabaseMode = getEffectiveDataMode() === "supabase";
@@ -37,6 +33,12 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authInfo, setAuthInfo] = useState<string | null>(null);
+  // Set when the user belongs to more than one tenant → show a picker instead of
+  // silently guessing. Cleared once they pick.
+  const [pickTenant, setPickTenant] = useState<TenantChoice[] | null>(null);
+  // Set when a valid account has NO tenant provisioned — a clear dead-end message,
+  // never a silent drop into the platform context.
+  const [noAccess, setNoAccess] = useState(false);
 
   // DEMO: preview the product as any role on seeded data (clearly separated).
   const enter = (role: RoleSlug) => {
@@ -44,10 +46,23 @@ export default function LoginPage() {
     router.push(surfaceHref(role));
   };
 
-  // REAL Supabase auth. New users have no org yet → routed to /setup to create one.
+  /**
+   * Enter a resolved tenant with a HARD navigation (full document load), not
+   * router.push. The tenant config for the whole client tree is seeded ONCE by the
+   * root layout from the page's initial server render; a soft nav from the platform
+   * login would leave the client stuck on PLATFORM_CONFIG (see AUDIT.md §6). A full
+   * load re-runs the root layout under the tenant's path, so root login lands in the
+   * exact same resolved context as signing in at /<slug>/login.
+   */
+  const enterTenant = (choice: TenantChoice) => {
+    window.location.assign(`/${choice.slug}${choice.path}`);
+  };
+
+  // REAL Supabase auth. Post-auth routing is membership-driven (shared decision),
+  // identical for the root/main login and any tenant login.
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    setAuthError(null); setAuthInfo(null);
+    setAuthError(null); setAuthInfo(null); setNoAccess(false); setPickTenant(null);
     if (!supabaseMode) {
       // Demo TENANT without a backend: the form is a shortcut into the demo admin.
       // A REAL tenant NEVER falls back to a demo user — it requires real auth.
@@ -60,21 +75,19 @@ export default function LoginPage() {
     const res = await signIn(email, password);
     if (!res.ok) { setBusy(false); setAuthError(res.error); return; }
 
-    // Look up the tenant this account belongs to and drop the user straight into
-    // it (e.g. /villas/dashboard) — they never need to know or type the slug.
-    const ut = res.user ? await resolveUserTenant(res.user.id) : { slug: null, orgName: null, role: null, firstName: null, staffId: null, staffLinked: null };
+    // Resolve EVERY active membership and let the shared decision route the user —
+    // one tenant → enter it; many → picker; none (non-platform) → no-access.
+    const memberships = res.user ? await resolveUserMemberships(res.user.id) : [];
+    const dest = postAuthDestination(memberships);
     setBusy(false);
-    // Never escalate on a missing role — fall back to the tenant's LOWEST privilege.
-    const assignedRole = resolveAssignedRole(config, ut.role);
-    loginReal(email, assignedRole, true);
-    setUserName(ut.firstName ?? (email.includes("@") ? email.split("@")[0] : email));
-    setStaffLink(ut.staffId, ut.staffLinked === true);
-    if (ut.staffLinked === false) console.warn(`[staff-link] ${email} signed in with an org membership but no linked staff profile — self-service features will show the "profile not set up" state. Run scripts/link-staff-profiles.ts.`);
-    if (ut.orgName) setRealOrg(ut.orgName, "small");
-    // Land on a page this role can actually use (lifeguards → Schedule, not a
-    // restricted Dashboard).
-    const home = landingPathForRole(assignedRole);
-    router.push(ut.slug ? `/${ut.slug}${home}` : home);
+
+    if (dest.kind === "tenant") { enterTenant(dest); return; }
+    if (dest.kind === "picker") { setPickTenant(dest.memberships); return; }
+    if (dest.kind === "platform") { router.push("/dashboard"); return; }
+    // no-access: authenticated, but no tenant provisioned. Drop the session so a
+    // half-authed state can't linger, and show the dead-end message.
+    await signOut();
+    setNoAccess(true);
   };
 
   const others = ROLE_LIST.filter((r) => !FEATURED.includes(r.slug));
@@ -128,6 +141,31 @@ export default function LoginPage() {
             {authInfo && (
               <div className="flex items-start gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
                 <Check className="mt-0.5 h-4 w-4 shrink-0" /> {authInfo}
+              </div>
+            )}
+
+            {/* Signed in but no tenant provisioned — a clear dead-end, NEVER a silent
+                drop into the platform context. */}
+            {noAccess && (
+              <div className="rounded-lg bg-amber-50 px-3 py-2.5 text-xs text-amber-800 ring-1 ring-inset ring-amber-600/20">
+                <p className="font-semibold">No access provisioned</p>
+                <p className="mt-0.5 text-amber-700">Your sign-in worked, but your account isn't a member of any workspace yet. Contact your administrator to be added.</p>
+              </div>
+            )}
+
+            {/* More than one workspace → let the user choose (no silent guess). */}
+            {pickTenant && pickTenant.length > 0 && (
+              <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <p className="text-xs font-semibold text-slate-700">Choose a workspace</p>
+                <div className="mt-2 grid gap-2">
+                  {pickTenant.map((t) => (
+                    <button key={t.slug} type="button" onClick={() => enterTenant(t)}
+                      className="group flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-left text-sm font-medium text-slate-800 transition-colors hover:border-brand-300 hover:bg-brand-50/40">
+                      <span className="truncate">{t.orgName ?? t.slug}</span>
+                      <ArrowRight className="h-4 w-4 shrink-0 text-slate-400 group-hover:text-brand-600" />
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 

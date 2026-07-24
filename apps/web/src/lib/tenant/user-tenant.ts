@@ -8,7 +8,7 @@
  * when tenant-config.sql hasn't been applied).
  */
 import { getBrowserSupabase } from "@poolops/supabase";
-import { KNOWN_TENANT_SLUGS, getTenantConfig, type RoleSlug } from "@poolops/shared";
+import { KNOWN_TENANT_SLUGS, getTenantConfig, isPlatformSlug, type MembershipInput, type RoleSlug } from "@poolops/shared";
 
 export interface ResolvedUserTenant {
   slug: string | null;
@@ -74,4 +74,49 @@ export async function resolveUserTenant(userId: string): Promise<ResolvedUserTen
     /* graceful — return whatever resolved */
   }
   return out;
+}
+
+/** Map an org id → tenant slug ('villas'), preferring the DB slug column, then the name. */
+async function slugForOrg(client: ReturnType<typeof getBrowserSupabase>, orgId: string): Promise<{ slug: string | null; name: string | null }> {
+  if (!client) return { slug: null, name: null };
+  const withSlug = await client.from("organizations").select("name, slug").eq("id", orgId).maybeSingle();
+  if (!withSlug.error && withSlug.data) {
+    const name = (withSlug.data as any).name ?? null;
+    return { slug: (withSlug.data as any).slug ?? slugForOrgName(name), name };
+  }
+  const byName = await client.from("organizations").select("name").eq("id", orgId).maybeSingle();
+  const name = (byName.data as any)?.name ?? null;
+  return { slug: slugForOrgName(name), name };
+}
+
+/**
+ * Resolve ALL of a user's ACTIVE memberships → the shared `postAuthDestination`
+ * input. This is what lets EVERY login entry point make one membership-driven
+ * routing decision (single tenant → enter it; many → picker; none → no-access;
+ * platform → platform), instead of a per-page redirect that skipped membership.
+ */
+export async function resolveUserMemberships(userId: string): Promise<MembershipInput[]> {
+  const client = getBrowserSupabase();
+  if (!client) return [];
+  try {
+    const { data: rows } = await client
+      .from("organization_members")
+      .select("role_slug, organization_id")
+      .eq("profile_id", userId).eq("status", "active");
+    const members = (rows ?? []) as Array<{ role_slug: string | null; organization_id: string | null }>;
+    const out: MembershipInput[] = [];
+    for (const m of members) {
+      if (!m.organization_id) continue;
+      const { slug, name } = await slugForOrg(client, m.organization_id);
+      out.push({
+        slug,
+        orgName: name,
+        role: (m.role_slug as RoleSlug) ?? null,
+        isPlatform: m.role_slug === "super_admin" || isPlatformSlug(slug),
+      });
+    }
+    return out;
+  } catch {
+    return [];
+  }
 }

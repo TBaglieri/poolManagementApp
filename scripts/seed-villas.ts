@@ -25,6 +25,13 @@ async function main() {
   const supabase = adminClient();
   const config = getTenantConfig("villas"); // fully resolved + validated
 
+  // Fail loudly if no slug: a slug-less org is exactly the corruption that broke
+  // login routing (a second Villas org with slug = NULL). Never create one.
+  if (!config.slug || !config.slug.trim()) {
+    console.error("✖ Refusing to seed: tenant config has no slug. An organization must have a routable slug.");
+    process.exit(1);
+  }
+
   console.log(`→ Seeding tenant "${config.slug}" (${config.displayName})…`);
 
   const base = {

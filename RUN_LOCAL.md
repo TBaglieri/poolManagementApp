@@ -94,6 +94,13 @@ Run these once (idempotent, safe to re-run) after `schema.sql` + `rls-policies.s
 supabase/chem-taken-at.sql       # chemical_logs.taken_at (when a reading was taken)
 supabase/shift-reports-rls.sql   # lifeguards see only their own shift reports (server-side)
 supabase/staff-auth-link.sql     # (if not already applied) auth → staff_profiles link
+supabase/organizations-slug-constraint.sql  # slug NOT NULL + UNIQUE (prevents the null-slug org that broke login routing)
+```
+
+Then verify org/slug integrity (reports null/duplicate slugs + orphan memberships):
+
+```bash
+npm run check-org-slugs
 ```
 
 ## 3d. Password reset (email unconfigured → use the admin link)
