@@ -147,9 +147,20 @@ Dashboard hierarchy pattern (reusable):
 
 ## Status of adoption
 
-- ✅ **Implemented now:** token pipeline (accent emitted + `accent` Tailwind scale),
-  type-scale utilities, the Readiness band, and the **admin dashboard** rebuilt to
-  the three-tier hierarchy.
-- ⏳ **Next pass (pending approval):** lifeguard home (Schedule), chemical logging,
-  checklists, admin/dense screens, logins, and a sweep of empty/loading/error states
-  — all following this document.
+- ✅ **Foundation:** token pipeline (accent emitted + `accent` Tailwind scale),
+  type-scale utilities, deepened status weights (-600 solids), and `useThemeColor()`
+  so charts follow the tenant palette.
+- ✅ **Dashboard:** rebuilt to the three-tier hierarchy with the Readiness band.
+- ✅ **Chrome:** sidebar (collapsible sections + accent active rail), topbar
+  decluttered (dead search removed).
+- ✅ **Lifeguard home:** `GuardActionPad` on My Schedule (permission-gated ≥44px
+  tiles).
+- ✅ **Chemical logging:** decimal keypad + larger targets + tabular figures.
+- ✅ **Shared components:** `StatCard`/`SectionCard` on the type scale (reaches every
+  screen); `AlertCard`/`Badge`/`ProgressBar` on the status system.
+- ✅ **Login:** platform-vs-tenant surface label + active-voice copy.
+- ✅ **Empties:** dashboard + reports + patron counts + schedule turned into actions.
+- ⏳ **Remaining polish (incremental):** skeleton loaders on the remaining async
+  panels; a couple of dense tables (payroll, time-clock) could still gain sticky
+  headers; per-facility identity colors (`FAC_COLOR`, facility gradients) could move
+  to facility data. None block the system — they follow this document.
