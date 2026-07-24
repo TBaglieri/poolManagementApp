@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Building2, Check, ChevronDown, Layers } from "lucide-react";
 import { useSession } from "@/lib/session";
 import { useTenantSeed } from "@/lib/tenant-data";
@@ -15,6 +15,16 @@ export function FacilitySwitcher() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useClickOutside(ref, () => setOpen(false), open);
+
+  // Reconcile a stale selection: if the persisted facilityId no longer matches any
+  // of this tenant's facilities (e.g. a deleted facility, or a leftover demo id),
+  // reset to "all" so data pages don't silently filter to nothing — and so the
+  // single-facility view below isn't a dead end.
+  useEffect(() => {
+    if (facilityId !== "all" && facilities.length > 0 && !facilities.some((f) => f.id === facilityId)) {
+      setFacility("all");
+    }
+  }, [facilities, facilityId, setFacility]);
 
   // No facilities yet → nothing to switch.
   if (facilities.length === 0) return null;

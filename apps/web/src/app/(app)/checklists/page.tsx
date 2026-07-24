@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import { ListChecks, Check, Clock, CheckCircle2, Plus, Pencil, Trash2, Sparkles, GripVertical } from "lucide-react";
 import { staffName, uid, type ChecklistTemplate, type ChecklistItem, type ChecklistCadence } from "@poolops/shared";
-import { useAccess, useMyStaffId } from "@/lib/access";
+import { useAccess, useMyStaffId, useStaffProfileState } from "@/lib/access";
+import { UnlinkedStaffNotice } from "@/components/shell/unlinked-staff-notice";
 import { useDemo } from "@/lib/store";
 import { useTenantSeed } from "@/lib/tenant-data";
 import { PageHeader } from "@/components/ui/page-header";
@@ -22,6 +23,7 @@ const CADENCE_LABEL: Record<ChecklistCadence, string> = { daily: "Daily", per_sh
 export default function ChecklistsPage() {
   const { can, staff: me } = useAccess();
   const myStaffId = useMyStaffId();
+  const profileState = useStaffProfileState();
   const { facilities } = useTenantSeed();
   const templates = useDemo((s) => s.checklistTemplates);
   const completions = useDemo((s) => s.checklists);
@@ -39,6 +41,17 @@ export default function ChecklistsPage() {
   const today = completions.filter((c) => new Date(c.completedAt).toDateString() === new Date().toDateString());
   const doneToday = today.filter((c) => c.status === "complete").length;
   const incomplete = today.filter((c) => c.status !== "complete").length;
+
+  // A real staff account with no linked profile can't run checklists as themselves
+  // (a completion would mis-attribute) — fail loudly. Admins can still manage.
+  if (profileState === "unlinked" && !canManage) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Checklists" subtitle="Opening, closing, and safety checklists." />
+        <UnlinkedStaffNotice />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -136,7 +149,7 @@ export default function ChecklistsPage() {
           facilities={facilities.filter((f) => runner.facilityIds.length === 0 || runner.facilityIds.includes(f.id))}
           onClose={() => setRunner(null)}
           onSubmit={(checked, note, fac) => {
-            complete({ templateId: runner.id, facilityId: fac, completedBy: myStaffId ?? me?.id ?? "staff", status: checked.length === runner.items.length ? "complete" : "incomplete", checkedItemIds: checked, note });
+            complete({ templateId: runner.id, facilityId: fac, completedBy: myStaffId ?? me?.id ?? "unknown", status: checked.length === runner.items.length ? "complete" : "incomplete", checkedItemIds: checked, note });
             setRunner(null);
           }}
         />

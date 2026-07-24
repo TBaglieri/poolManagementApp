@@ -46,7 +46,7 @@ export default function MaintenancePage() {
     if (!form.title.trim()) return;
     addIssue({
       facilityId: form.facilityId, area: form.area || "General", title: form.title, description: form.description,
-      priority: form.priority, status: "new", reportedBy: myStaffId ?? me?.id ?? "staff", assignedTo: null, hasPhoto: false,
+      priority: form.priority, status: "new", reportedBy: myStaffId ?? me?.id ?? "unknown", assignedTo: null, hasPhoto: false,
     });
     setOpen(false);
     setForm({ facilityId: facilities[0]?.id ?? "", area: "", title: "", description: "", priority: "medium" });

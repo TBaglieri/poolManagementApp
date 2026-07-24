@@ -99,7 +99,7 @@ export default function ChemicalsPage() {
   const submit = () => {
     if (isFuture) return; // block future timestamps
     const flags = addLog({
-      facilityId: form.facilityId, poolId: form.poolId, recordedBy: myStaffId ?? me?.id ?? "staff_head1",
+      facilityId: form.facilityId, poolId: form.poolId, recordedBy: myStaffId ?? me?.id ?? "unknown",
       takenAt: takenDate.toISOString(),
       freeChlorine: Number(form.freeChlorine), combinedChlorine: Number(form.combinedChlorine),
       ph: Number(form.ph), alkalinity: Number(form.alkalinity), calciumHardness: Number(form.calciumHardness),

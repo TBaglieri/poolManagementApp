@@ -92,7 +92,7 @@ export default function ShiftReportsPage() {
         <NewReportModal
           facilities={facilities}
           onClose={() => setComposing(false)}
-          onSubmit={(r) => { useDemo.getState().addReport({ ...r, staffId: myStaffId ?? "staff", reviewStatus: "submitted" }); setComposing(false); }}
+          onSubmit={(r) => { useDemo.getState().addReport({ ...r, staffId: myStaffId ?? "unknown", reviewStatus: "submitted" }); setComposing(false); }}
         />
       )}
     </div>

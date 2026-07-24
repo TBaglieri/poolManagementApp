@@ -405,11 +405,14 @@ export const useDemo = create<DemoState>((set, get) => ({
     set((s) => ({ checklistTemplates: s.checklistTemplates.filter((t) => t.id !== id) })),
   importExampleChecklists: () =>
     set((s) => {
-      // Only add examples that aren't already present (idempotent), re-id'd for this tenant.
+      // Only add examples that aren't already present (idempotent), re-id'd for this
+      // tenant. Clear facilityIds — the sample data points at DEMO facilities that
+      // don't exist here; an empty list means "applies to all of this tenant's
+      // facilities" (see the editor's "none = all facilities").
       const have = new Set(s.checklistTemplates.map((t) => t.name.toLowerCase()));
       const add = clone(seedChecklistTemplates)
         .filter((t) => !have.has(t.name.toLowerCase()))
-        .map((t) => ({ ...t, id: uid("cl") }));
+        .map((t) => ({ ...t, id: uid("cl"), facilityIds: [] }));
       return { checklistTemplates: [...add, ...s.checklistTemplates] };
     }),
 
