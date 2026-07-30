@@ -9,7 +9,19 @@ status, and what this pass fixed. Legend:
 
 ## Root cause found
 
-Two systemic defects, both fixed this pass:
+Three systemic defects, all fixed:
+
+0. **Actor columns referenced `profiles(id)` (the auth user) but got `staff_profiles.id`.**
+   `chemical_logs.recorded_by`, `maintenance_issues.reported_by`, `messages.sender_id`,
+   `channels.created_by`, etc. So even chem logs — thought to persist — were failing the
+   FK silently (and `messages_post` RLS needs `sender_id = auth.uid()`).
+   → Fixed by `supabase/insert-actor.sql`: a `BEFORE INSERT` trigger defaults each actor
+   column to `auth.uid()` when the client omits it. The clients now omit those columns,
+   so rows persist with the correct actor and RLS passes. A `channels` AFTER-INSERT
+   trigger also adds the creator to `channel_members`, so a new chat is visible to its
+   creator on reload.
+
+Plus:
 
 1. **Inserts omitted `organization_id`** (NOT NULL) — e.g. `repos.chemicals.create`,
    the chat repo, etc. sent no org id, so the insert **failed silently** against
@@ -34,9 +46,9 @@ Two systemic defects, both fixed this pass:
 | **Time off** — request / approve | insert + update | ✅ (`timeOff.*`) | ✅ (now) | ✅ |
 | **Shift trades** — request / approve | insert + update | ✅ (`trades.*`) | ✅ (now) | ✅ |
 | **Schedule** — assign / pick up shift | update shift | ✅ (`scheduling.updateShift`) | ✅ (now) | ✅ |
-| **Chat** — create group / DM | insert channel + members | ⚠️ (repo sends no org id → trigger fills; member roster read-back needs staff↔profile id join) | channels ✅, members ⚠️ | ⚠️ |
-| **Chat** — post message | insert message | ✅ (`chat.postMessage`) | ✅ (+ realtime) | ✅ |
-| **Chat** — add/remove member | insert/delete membership | ⚠️ (writes; read-back pending) | ⚠️ | ⚠️ |
+| **Chat** — create group / DM | insert channel (+ creator member via trigger) | ✅ (org id + created_by + creator membership via triggers) | creator ✅, other members ⚠️ | ⚠️ |
+| **Chat** — post message | insert message | ✅ (sender_id via trigger; RLS passes) | ✅ (+ realtime) | ✅ |
+| **Chat** — add/remove OTHER member | insert/delete membership | ⚠️ needs staff_id→profile_id (roster carries profile_id) | ⚠️ | ⚠️ TODO |
 | **Chat** — disable-DMs toggle | update org flag | ❌ local-only (`dmsDisabled` in store) | ❌ | ❌ TODO |
 | **Facilities** — "Add a facility" | insert facility (+ pool) | ✅ (`facilities.create` + `createPool`) | ✅ (hydrator) | ✅ |
 | **Shift reports** — submit / review | insert + update | ✅ (`reports.create/update`) | ✅ | ✅ |

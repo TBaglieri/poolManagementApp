@@ -143,6 +143,25 @@ create policy messages_post on public.messages for insert
 
 -- (messages_pin policy from rls-policies.sql is unchanged.)
 
+-- 5b) Auto-add the creator as a member of a new group/DM ---------------------
+-- The client can't supply the creator's profile id (it attributes by staff id), so
+-- membership is guaranteed here: after a group/dm channel is inserted, add its
+-- creator (created_by, defaulted to auth.uid() by insert-actor.sql) to channel_members.
+-- This makes the creator's chats visible to them on reload via is_channel_member().
+create or replace function public.add_channel_creator()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.chat_type in ('group', 'dm') and new.created_by is not null then
+    insert into public.channel_members (channel_id, profile_id)
+    values (new.id, new.created_by)
+    on conflict (channel_id, profile_id) do nothing;
+  end if;
+  return new;
+end$$;
+drop trigger if exists trg_add_channel_creator on public.channels;
+create trigger trg_add_channel_creator after insert on public.channels
+  for each row execute function public.add_channel_creator();
+
 -- 6) Realtime ----------------------------------------------------------------
 -- messages/channels are already published (supabase/realtime.sql); add membership
 -- so a client updates its chat list live when added/removed.

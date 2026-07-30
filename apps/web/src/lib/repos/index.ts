@@ -199,9 +199,11 @@ export const repos = {
   chat: {
     listChannels: () => selectOr<any, Channel>("channels", seedChannels, mapChannel),
     listMessages: () => selectOr<any, Message>("messages", seedMessages, mapMessage, (q) => q.order("created_at", { ascending: true })),
-    async postMessage(channelId: string, senderId: string, body: string, opts: Partial<Message> = {}) {
+    async postMessage(channelId: string, _senderId: string, body: string, opts: Partial<Message> = {}) {
+      // sender_id omitted → trigger sets auth.uid() (messages_post RLS requires it,
+      // and the column is a profiles(id) FK the app's staff id can't satisfy).
       return insertOr<Message>("messages", {
-        channel_id: channelId, sender_id: senderId, body,
+        channel_id: channelId, body,
         pinned: opts.pinned ?? false, priority: opts.priority ?? "normal",
         kind: opts.kind ?? "message", template: opts.template ?? null, link_url: opts.linkUrl ?? null,
       }, mapMessage);
@@ -209,23 +211,20 @@ export const repos = {
     // Best-effort persistence for team chat (group chats, DMs, membership). In mock
     // mode these no-op; in supabase mode RLS (supabase/chat.sql) enforces who may
     // create/join, so a lifeguard can't create a group chat via a raw call.
-    // organization_id is omitted on purpose — the BEFORE INSERT trigger
-    // (supabase/org-defaults.sql) stamps the caller's real org id from their JWT, so
-    // the mock-mode tenant slug never leaks into a uuid column.
+    // organization_id and created_by are omitted on purpose — DB triggers stamp the
+    // caller's real org id and auth.uid() (see org-defaults.sql / insert-actor.sql),
+    // so the mock-mode tenant slug / staff id never leaks into a uuid/FK column. An
+    // AFTER INSERT trigger (chat.sql) adds the creator to channel_members, so the
+    // creator's chat is visible on reload without the client knowing profile ids.
+    // NOTE: adding OTHER members needs a staff_id→profile_id resolution (roster
+    // carries profile_id); tracked in FIX6_AUDIT.md.
     async createGroupChat(input: { id: string; name: string; description?: string; memberIds: string[]; createdBy: string; organizationId?: string }) {
-      const created = await insertOr<{ id: string }>("channels", {
-        name: input.name, kind: "group", chat_type: "group",
-        description: input.description ?? null, created_by: input.createdBy,
-      }, (r) => ({ id: String(r.id) }));
-      const channelId = created.data?.id ?? input.id;
-      await Promise.all(input.memberIds.map((pid) => insertOr("channel_members", { channel_id: channelId, profile_id: pid })));
+      await insertOr("channels", {
+        name: input.name, kind: "group", chat_type: "group", description: input.description ?? null,
+      });
     },
     async createDirectChat(input: { id: string; fromStaffId: string; toStaffId: string; organizationId?: string }) {
-      const created = await insertOr<{ id: string }>("channels", {
-        name: "Direct message", kind: "dm", chat_type: "dm", created_by: input.fromStaffId,
-      }, (r) => ({ id: String(r.id) }));
-      const channelId = created.data?.id ?? input.id;
-      await Promise.all([input.fromStaffId, input.toStaffId].map((pid) => insertOr("channel_members", { channel_id: channelId, profile_id: pid })));
+      await insertOr("channels", { name: "Direct message", kind: "dm", chat_type: "dm" });
     },
     async addChannelMember(channelId: string, profileId: string) {
       await insertOr("channel_members", { channel_id: channelId, profile_id: profileId });

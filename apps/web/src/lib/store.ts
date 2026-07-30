@@ -394,9 +394,11 @@ export const useDemo = create<DemoState>((set, get) => ({
       issues: [{ ...issue, id: uid("mi"), reportedAt: new Date().toISOString() }, ...s.issues],
     }));
     if (activeMode() === "supabase") {
+      // reported_by omitted → trigger sets auth.uid() (FK is profiles(id)).
+      // assigned_to references staff_profiles(id), so the app's staff id is valid.
       void repos.maintenance.create({
         facility_id: issue.facilityId, area: issue.area, title: issue.title, description: issue.description,
-        priority: issue.priority, status: issue.status, reported_by: issue.reportedBy,
+        priority: issue.priority, status: issue.status,
         assigned_to: issue.assignedTo, due_date: issue.dueDate ?? null,
       });
     }
@@ -434,8 +436,10 @@ export const useDemo = create<DemoState>((set, get) => ({
       ],
     }));
     if (activeMode() === "supabase") {
+      // recorded_by is omitted → the insert-actor trigger sets it to auth.uid()
+      // (it references profiles(id); the app's staff id would violate the FK).
       void repos.chemicals.create({
-        facility_id: log.facilityId, pool_id: log.poolId, recorded_by: log.recordedBy,
+        facility_id: log.facilityId, pool_id: log.poolId,
         free_chlorine: log.freeChlorine, combined_chlorine: log.combinedChlorine, ph: log.ph,
         alkalinity: log.alkalinity, calcium_hardness: log.calciumHardness, cyanuric_acid: log.cyanuricAcid,
         water_temp: log.waterTemp, notes: log.notes ?? null, out_of_range: flags, taken_at: takenAt,
