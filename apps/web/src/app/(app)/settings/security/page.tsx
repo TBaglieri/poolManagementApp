@@ -8,8 +8,9 @@ import { reauthenticate, updatePassword } from "@/lib/auth";
 import { validatePasswordChange } from "@/lib/accounts";
 import { PageHeader } from "@/components/ui/page-header";
 import { SectionCard } from "@/components/ui/section-card";
-import { Field, Input } from "@/components/ui/field";
+import { Field } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
+import { PasswordInput } from "@/components/ui/password-input";
 
 /**
  * My Account → Change password. Available to EVERY signed-in role for their OWN
@@ -58,13 +59,13 @@ export default function SecurityPage() {
       <SectionCard title="Change password" subtitle="Update the password for your own account." icon={<KeyRound className="h-4 w-4 text-brand-600" />}>
         <form onSubmit={submit} className="max-w-md space-y-4">
           <Field label="Current password" required>
-            <Input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" placeholder="Your current password" />
+            <PasswordInput value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" placeholder="Your current password" />
           </Field>
           <Field label="New password" required hint="At least 8 characters, with a letter and a number.">
-            <Input type="password" value={next} onChange={(e) => setNext(e.target.value)} autoComplete="new-password" placeholder="Choose a new password" />
+            <PasswordInput value={next} onChange={(e) => setNext(e.target.value)} autoComplete="new-password" placeholder="Choose a new password" />
           </Field>
           <Field label="Confirm new password" required>
-            <Input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" placeholder="Re-enter your new password" />
+            <PasswordInput value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" placeholder="Re-enter your new password" />
           </Field>
 
           {message && (

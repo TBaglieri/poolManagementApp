@@ -11,6 +11,7 @@ import { updatePassword } from "@/lib/auth";
 import { resolveUserTenant } from "@/lib/tenant/user-tenant";
 import { validatePassword } from "@/lib/accounts";
 import { TenantWordmark } from "@/components/theme/tenant-brand";
+import { PasswordInput } from "@/components/ui/password-input";
 
 type Phase = "checking" | "ready" | "invalid" | "done";
 
@@ -105,17 +106,11 @@ export default function ResetPasswordPage() {
               <form onSubmit={submit} className="mt-5 space-y-4">
                 <div>
                   <label className="label">New password</label>
-                  <div className="relative">
-                    <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <input className="input pl-9" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters, with a number" autoComplete="new-password" />
-                  </div>
+                  <PasswordInput leadingIcon={<Lock className="h-4 w-4" />} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters, with a number" autoComplete="new-password" />
                 </div>
                 <div>
                   <label className="label">Confirm new password</label>
-                  <div className="relative">
-                    <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <input className="input pl-9" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="Re-enter your new password" autoComplete="new-password" />
-                  </div>
+                  <PasswordInput leadingIcon={<Lock className="h-4 w-4" />} value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="Re-enter your new password" autoComplete="new-password" />
                 </div>
                 {error && <p className="flex items-center gap-1.5 text-xs text-rose-600"><AlertCircle className="h-4 w-4 shrink-0" /> {error}</p>}
                 <button type="submit" disabled={busy} className="btn-primary w-full justify-center py-2.5">

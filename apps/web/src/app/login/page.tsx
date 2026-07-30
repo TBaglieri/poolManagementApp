@@ -13,6 +13,7 @@ import { resolveUserMemberships } from "@/lib/tenant/user-tenant";
 import { signIn, signOut } from "@/lib/auth";
 import { TenantWordmark } from "@/components/theme/tenant-brand";
 import { RoleBadge } from "@/components/ui/badge";
+import { PasswordInput } from "@/components/ui/password-input";
 
 function surfaceHref(role: RoleSlug): string {
   return getRole(role).surface === "mobile" ? "/m/home" : "/dashboard";
@@ -131,10 +132,7 @@ export default function LoginPage() {
                   <Link href={forgotHref} className="text-xs font-medium text-brand-600 hover:text-brand-700">Forgot password?</Link>
                 )}
               </div>
-              <div className="relative">
-                <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input className="input pl-9" value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder={mode === "signup" ? "Choose a password (min 6 chars)" : "Your password"} autoComplete={mode === "signup" ? "new-password" : "current-password"} />
-              </div>
+              <PasswordInput leadingIcon={<Lock className="h-4 w-4" />} value={password} onChange={(e) => setPassword(e.target.value)} placeholder={mode === "signup" ? "Choose a password (min 6 chars)" : "Your password"} autoComplete={mode === "signup" ? "new-password" : "current-password"} />
             </div>
 
             {authError && (

@@ -14,6 +14,7 @@ import { validatePassword, inviteAcceptable } from "@/lib/accounts";
 import { Logo } from "@/components/brand";
 import { RoleBadge } from "@/components/ui/badge";
 
+import { PasswordInput } from "@/components/ui/password-input";
 interface ResolvedInvite {
   email: string;
   firstName: string;
@@ -154,10 +155,7 @@ export default function AcceptInvitePage({ params }: { params: { token: string }
               {supabaseMode && (
                 <div className="mt-4">
                   <label className="label">Choose a password</label>
-                  <div className="relative">
-                    <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <input className="input pl-9" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters, with a number" autoComplete="new-password" />
-                  </div>
+                  <PasswordInput leadingIcon={<Lock className="h-4 w-4" />} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters, with a number" autoComplete="new-password" />
                   <p className="mt-1 text-xs text-slate-400">You'll sign in with this each time — everything you do is recorded under your name.</p>
                 </div>
               )}
