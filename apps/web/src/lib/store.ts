@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import {
-  getFacility, staffName, uid,
+  getFacility, getStaff, staffName, uid,
   type ChemicalLog, type ChecklistCompletion, type ID,
   type MaintenanceIssue, type Message, type MessageKind, type Notification, type PatronCount,
   type RequestStatus, type ShiftReport, type ShiftTradeRequest, type TimeClockEntry,
@@ -14,6 +14,8 @@ import {
   onboardingSubmissions as seedOnboarding, patronCounts as seedPatron, shiftReports as seedReports,
   shiftTradeRequests as seedTrades, shifts as seedShifts, timeClockEntries as seedClock, timeOffRequests as seedTimeOff,
   facilities as seedFacilities, pools as seedPools, DEFAULT_CHEMICAL_RANGES, flagOutOfRange,
+  canCreateGroupChat, canSendDirectMessage, canToggleDirectMessages, canManageChatMembers,
+  type Channel, type RoleSlug,
 } from "@poolops/shared";
 import type { ScheduleDraft } from "@poolops/scheduling";
 import { repos, activeMode } from "./repos";
@@ -96,6 +98,28 @@ interface DemoState {
   addChemicalLog: (log: Omit<ChemicalLog, "id" | "recordedAt" | "outOfRange">, enabledFields?: readonly string[]) => string[];
   postMessage: (channelId: ID, senderId: ID, body: string, opts?: PostOptions) => void;
   togglePinMessage: (id: ID) => void;
+
+  /* ---- Team chat: group chats, DMs, membership, and the org DM toggle ---- */
+  /** Org-wide switch: when true, front-line staff can't start/send DMs (managers still can). */
+  dmsDisabled: boolean;
+  /** Flip the org DM toggle. Enforced: only Super Admin / Pool Manager. Returns success. */
+  setDmsDisabled: (value: boolean, actorRole: RoleSlug | null) => boolean;
+  /** Create a group chat with a custom member set. Enforced: manager tier and up.
+   *  The creator is always a member. Returns the new channel id, or an error. */
+  createGroupChat: (input: {
+    name: string; description?: string; memberIds: ID[];
+    createdBy: ID; creatorRole: RoleSlug | null; organizationId?: ID;
+  }) => { ok: true; id: string } | { ok: false; error: string };
+  /** Start (or reuse) a 1:1 DM between two staff. Enforced: DMs enabled or the sender is a manager. */
+  createDirectChat: (input: {
+    fromStaffId: ID; toStaffId: ID; senderRole: RoleSlug | null; organizationId?: ID;
+  }) => { ok: true; id: string } | { ok: false; error: string };
+  /** Add a member to a group chat. Enforced: creator or manager. */
+  addChannelMember: (channelId: ID, staffId: ID, actor: { staffId: ID | null; role: RoleSlug | null }) => boolean;
+  /** Remove a member from a group chat. Enforced: creator or manager (never the creator themselves). */
+  removeChannelMember: (channelId: ID, staffId: ID, actor: { staffId: ID | null; role: RoleSlug | null }) => boolean;
+  /** Mark a channel read (clears its unread count). */
+  markChannelRead: (channelId: ID) => void;
   completeChecklist: (c: Omit<ChecklistCompletion, "id" | "completedAt">) => void;
   /** Admin CRUD for checklist templates (create/edit/archive/import examples). */
   addChecklistTemplate: (t: Omit<ChecklistTemplate, "id">) => string;
@@ -154,6 +178,7 @@ export const useDemo = create<DemoState>((set, get) => ({
   drafts: [],
   shifts: [],
   scheduleSettings: { autoPostToAllTeam: true, allowStaffComments: true, notifyInApp: true, emailSms: false },
+  dmsDisabled: false,
   facilities: [],
   pools: [],
   seeded: false,
@@ -393,6 +418,11 @@ export const useDemo = create<DemoState>((set, get) => ({
   },
 
   postMessage: (channelId, senderId, body, opts = {}) => {
+    // Membership guard: only a member may post to a group chat / DM. Announcement
+    // channels are open (posting there is gated by chat.announce in the UI). Mirrors
+    // the RLS `messages_post` check so the store behaves like the backend.
+    const ch = get().channels.find((c) => c.id === channelId);
+    if (ch && (ch.chatType === "group" || ch.chatType === "dm") && !ch.memberIds?.includes(senderId)) return;
     set((s) => ({
       messages: [
         ...s.messages,
@@ -412,6 +442,80 @@ export const useDemo = create<DemoState>((set, get) => ({
 
   togglePinMessage: (id) =>
     set((s) => ({ messages: s.messages.map((m) => (m.id === id ? { ...m, pinned: !m.pinned } : m)) })),
+
+  setDmsDisabled: (value, actorRole) => {
+    if (!canToggleDirectMessages(actorRole)) return false; // Super Admin / Pool Manager only
+    set({ dmsDisabled: value });
+    return true;
+  },
+
+  createGroupChat: ({ name, description, memberIds, createdBy, creatorRole, organizationId }) => {
+    // Backend-equivalent guard: front-line staff can NEVER create a group chat.
+    if (!canCreateGroupChat(creatorRole)) return { ok: false as const, error: "Only managers and admins can create group chats." };
+    const trimmed = name.trim();
+    if (!trimmed) return { ok: false as const, error: "Give the chat a name." };
+    // The creator is always a member; de-dupe the roster.
+    const members = Array.from(new Set([createdBy, ...memberIds])).filter(Boolean);
+    const id = uid("ch");
+    const channel: Channel = {
+      id, name: trimmed, kind: "group", chatType: "group",
+      description: description?.trim() || `${members.length} members`,
+      createdBy, memberIds: members, organizationId, unread: 0,
+    };
+    set((s) => ({ channels: [channel, ...s.channels] }));
+    if (activeMode() === "supabase") void repos.chat.createGroupChat?.({ id, name: trimmed, description, memberIds: members, createdBy, organizationId });
+    return { ok: true as const, id };
+  },
+
+  createDirectChat: ({ fromStaffId, toStaffId, senderRole, organizationId }) => {
+    if (fromStaffId === toStaffId) return { ok: false as const, error: "You can't DM yourself." };
+    // DMs are open by default; when disabled org-wide only managers may still start one.
+    if (!canSendDirectMessage(senderRole, get().dmsDisabled)) {
+      return { ok: false as const, error: "Direct messages are disabled for your account." };
+    }
+    // Reuse an existing DM between exactly these two people (tenant-scoped).
+    const pair = [fromStaffId, toStaffId].sort();
+    const existing = get().channels.find((c) =>
+      c.chatType === "dm" && c.organizationId === organizationId &&
+      (c.memberIds ?? []).slice().sort().join("|") === pair.join("|"));
+    if (existing) return { ok: true as const, id: existing.id };
+    const other = getStaff(toStaffId);
+    const id = uid("dm");
+    const channel: Channel = {
+      id, name: other ? `${other.firstName} ${other.lastName}` : "Direct message",
+      kind: "dm", chatType: "dm", description: "Direct message",
+      createdBy: fromStaffId, memberIds: [fromStaffId, toStaffId], organizationId, unread: 0,
+    };
+    set((s) => ({ channels: [channel, ...s.channels] }));
+    if (activeMode() === "supabase") void repos.chat.createDirectChat?.({ id, fromStaffId, toStaffId, organizationId });
+    return { ok: true as const, id };
+  },
+
+  addChannelMember: (channelId, staffId, actor) => {
+    const ch = get().channels.find((c) => c.id === channelId);
+    if (!ch || !canManageChatMembers(ch, { staffId: actor.staffId, role: actor.role })) return false;
+    set((s) => ({
+      channels: s.channels.map((c) =>
+        c.id === channelId ? { ...c, memberIds: Array.from(new Set([...(c.memberIds ?? []), staffId])) } : c),
+    }));
+    if (activeMode() === "supabase") void repos.chat.addChannelMember?.(channelId, staffId);
+    return true;
+  },
+
+  removeChannelMember: (channelId, staffId, actor) => {
+    const ch = get().channels.find((c) => c.id === channelId);
+    if (!ch || !canManageChatMembers(ch, { staffId: actor.staffId, role: actor.role })) return false;
+    if (ch.createdBy === staffId) return false; // don't strip the creator
+    set((s) => ({
+      channels: s.channels.map((c) =>
+        c.id === channelId ? { ...c, memberIds: (c.memberIds ?? []).filter((m) => m !== staffId) } : c),
+    }));
+    if (activeMode() === "supabase") void repos.chat.removeChannelMember?.(channelId, staffId);
+    return true;
+  },
+
+  markChannelRead: (channelId) =>
+    set((s) => ({ channels: s.channels.map((c) => (c.id === channelId ? { ...c, unread: 0 } : c)) })),
 
   completeChecklist: (c) =>
     set((s) => ({

@@ -56,6 +56,8 @@ function mapChannel(r: any): Channel {
   return {
     id: s(r.id), name: s(r.name), kind: (r.kind ?? "all_staff"), description: s(r.description),
     facilityId: r.facility_id ?? undefined, restrictedToRoles: r.restricted_to_roles ?? undefined, unread: 0,
+    chatType: r.chat_type ?? undefined, organizationId: r.organization_id ?? undefined, createdBy: r.created_by ?? undefined,
+    memberIds: r.member_ids ?? undefined,
   };
 }
 
@@ -159,6 +161,29 @@ export const repos = {
         pinned: opts.pinned ?? false, priority: opts.priority ?? "normal",
         kind: opts.kind ?? "message", template: opts.template ?? null, link_url: opts.linkUrl ?? null,
       }, mapMessage);
+    },
+    // Best-effort persistence for team chat (group chats, DMs, membership). In mock
+    // mode these no-op; in supabase mode RLS (supabase/chat.sql) enforces who may
+    // create/join, so a lifeguard can't create a group chat via a raw call.
+    async createGroupChat(input: { id: string; name: string; description?: string; memberIds: string[]; createdBy: string; organizationId?: string }) {
+      await insertOr("channels", {
+        organization_id: input.organizationId, name: input.name, kind: "group", chat_type: "group",
+        description: input.description ?? null, created_by: input.createdBy,
+      });
+      await Promise.all(input.memberIds.map((pid) => insertOr("channel_members", { channel_id: input.id, profile_id: pid })));
+    },
+    async createDirectChat(input: { id: string; fromStaffId: string; toStaffId: string; organizationId?: string }) {
+      await insertOr("channels", {
+        organization_id: input.organizationId, name: "Direct message", kind: "dm", chat_type: "dm", created_by: input.fromStaffId,
+      });
+      await Promise.all([input.fromStaffId, input.toStaffId].map((pid) => insertOr("channel_members", { channel_id: input.id, profile_id: pid })));
+    },
+    async addChannelMember(channelId: string, profileId: string) {
+      await insertOr("channel_members", { channel_id: channelId, profile_id: profileId });
+    },
+    async removeChannelMember(channelId: string, profileId: string) {
+      const client = db();
+      if (client) await client.from("channel_members").delete().eq("channel_id", channelId).eq("profile_id", profileId);
     },
   },
 

@@ -139,6 +139,8 @@ export const CHANNEL_KIND_LABELS: Record<ChannelKind, string> = {
   role: "Role Channel",
   facility: "Facility Channel",
   admin: "Admin / Payroll",
+  group: "Group Chat",
+  dm: "Direct Message",
 };
 
 export const MESSAGE_TEMPLATE_LABELS: Record<MessageTemplateKey, string> = {
