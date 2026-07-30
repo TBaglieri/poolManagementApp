@@ -143,7 +143,8 @@ interface DemoState {
   /** Replace store slices with live Supabase data (used by SupabaseHydrator). */
   hydrate: (partial: Partial<Pick<DemoState,
     "messages" | "channels" | "chemicals" | "issues" | "notifications" | "clock"
-    | "timeOff" | "trades" | "shifts" | "facilities" | "pools">>) => void;
+    | "timeOff" | "trades" | "shifts" | "facilities" | "pools"
+    | "reports" | "patron" | "checklists">>) => void;
   /** True once the bundled demo dataset has been loaded (demo tenant only). */
   seeded: boolean;
   /**
@@ -203,6 +204,24 @@ export const useDemo = create<DemoState>((set, get) => ({
       facilities: [...s.facilities, { ...input, id }],
       pools: [...s.pools, pool],
     }));
+    // Persist (organization_id is stamped by the DB trigger). manager_id is omitted
+    // to avoid a staff↔profile FK mismatch; the pool attaches to the real facility id.
+    if (activeMode() === "supabase") {
+      void (async () => {
+        const res = await repos.facilities.create({
+          name: input.name, address: input.address, pool_type: input.poolType,
+          operating_hours: input.operatingHours, capacity: input.capacity,
+          emergency_phone: input.emergencyPhone, status: input.status,
+          chemical_ranges: input.chemicalRanges, inspection_required: input.inspectionRequired,
+          image_hint: input.imageHint,
+        });
+        const realId = (res.data as { id?: string } | null)?.id;
+        if (realId) await repos.facilities.createPool({
+          facility_id: realId, name: pool.name, pool_type: pool.poolType,
+          volume_gallons: pool.volumeGallons, max_depth_ft: pool.maxDepthFt,
+        });
+      })();
+    }
     return id;
   },
 
@@ -544,10 +563,17 @@ export const useDemo = create<DemoState>((set, get) => ({
     });
   },
 
-  completeChecklist: (c) =>
+  completeChecklist: (c) => {
     set((s) => ({
       checklists: [{ ...c, id: uid("clc"), completedAt: new Date().toISOString() }, ...s.checklists],
-    })),
+    }));
+    // completed_by references profiles(id); the app attributes by staff id, so it's
+    // omitted (nullable) to let the row persist — org id is stamped by the trigger.
+    if (activeMode() === "supabase") void repos.checklists.create({
+      template_id: c.templateId, facility_id: c.facilityId, status: c.status,
+      checked_item_ids: c.checkedItemIds, note: c.note ?? null,
+    });
+  },
 
   addChecklistTemplate: (t) => {
     const id = uid("cl");
@@ -571,18 +597,32 @@ export const useDemo = create<DemoState>((set, get) => ({
       return { checklistTemplates: [...add, ...s.checklistTemplates] };
     }),
 
-  addPatronCount: (facilityId, timeSlot, count, by) =>
+  addPatronCount: (facilityId, timeSlot, count, by) => {
     set((s) => ({
       patron: [
         { id: uid("pc"), facilityId, recordedAt: new Date().toISOString(), recordedBy: by, timeSlot, count },
         ...s.patron,
       ],
-    })),
+    }));
+    // recorded_by references profiles(id) → omitted (app attributes by staff id).
+    if (activeMode() === "supabase") void repos.patron.create({ facility_id: facilityId, time_slot: timeSlot, count });
+  },
 
-  addReport: (r) => set((s) => ({ reports: [{ ...r, id: uid("sr") }, ...s.reports] })),
+  addReport: (r) => {
+    set((s) => ({ reports: [{ ...r, id: uid("sr") }, ...s.reports] }));
+    // staff_id references staff_profiles(id) — matches the app's staff id in real mode.
+    if (activeMode() === "supabase") void repos.reports.create({
+      facility_id: r.facilityId, staff_id: r.staffId, shift_label: r.shiftLabel, report_date: r.date,
+      weather: r.weather, staffing_notes: r.staffingNotes, incidents: r.incidents,
+      maintenance_concerns: r.maintenanceConcerns, patron_issues: r.patronIssues,
+      supplies_needed: r.suppliesNeeded, review_status: r.reviewStatus,
+    });
+  },
 
-  setReportStatus: (id, status, managerNotes) =>
-    set((s) => ({ reports: s.reports.map((r) => (r.id === id ? { ...r, reviewStatus: status, ...(managerNotes !== undefined ? { managerNotes } : {}) } : r)) })),
+  setReportStatus: (id, status, managerNotes) => {
+    set((s) => ({ reports: s.reports.map((r) => (r.id === id ? { ...r, reviewStatus: status, ...(managerNotes !== undefined ? { managerNotes } : {}) } : r)) }));
+    if (activeMode() === "supabase") void repos.reports.update(id, { review_status: status, ...(managerNotes !== undefined ? { manager_notes: managerNotes } : {}) });
+  },
 
   markNotificationsRead: () =>
     set((s) => ({ notifications: s.notifications.map((n) => ({ ...n, read: true })) })),

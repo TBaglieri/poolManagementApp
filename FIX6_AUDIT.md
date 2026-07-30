@@ -38,14 +38,25 @@ Two systemic defects, both fixed this pass:
 | **Chat** — post message | insert message | ✅ (`chat.postMessage`) | ✅ (+ realtime) | ✅ |
 | **Chat** — add/remove member | insert/delete membership | ⚠️ (writes; read-back pending) | ⚠️ | ⚠️ |
 | **Chat** — disable-DMs toggle | update org flag | ❌ local-only (`dmsDisabled` in store) | ❌ | ❌ TODO |
-| **Facilities** — "Add a facility" | insert facility (+ pool) | ❌ local-only (`addFacility` never calls `facilities.create`) | list ✅, create ❌ | ❌ TODO |
-| **Shift reports** — submit / review | insert + update | ❌ local-only (`addReport`, `setReportStatus`) | ❌ | ❌ TODO |
-| **Checklists** — complete / template CRUD | insert/update/delete | ❌ local-only | ❌ | ❌ TODO |
-| **Patron counts** — add | insert | ❌ local-only (`addPatronCount`) | ❌ | ❌ TODO |
-| **Onboarding** — set step | update | ❌ local-only (`setOnboardingStep`) | ❌ | ❌ TODO |
-| **Schedule drafts** — build/publish | insert/update | ❌ local-only (`addDraft`/`publishDraft`) | ❌ | ❌ TODO |
+| **Facilities** — "Add a facility" | insert facility (+ pool) | ✅ (`facilities.create` + `createPool`) | ✅ (hydrator) | ✅ |
+| **Shift reports** — submit / review | insert + update | ✅ (`reports.create/update`) | ✅ | ✅ |
+| **Checklists** — complete | insert | ✅ (`checklists.create`) | ✅ | ✅ |
+| **Patron counts** — add | insert | ✅ (`patron.create`) | ✅ | ✅ |
+| **Checklist templates** — CRUD | insert/update/delete | ❌ local-only (items live in a 2nd table) | ❌ | ❌ TODO |
+| **Onboarding** — set step | update | ❌ local-only (needs a (staff,step) upsert key) | ❌ | ❌ TODO |
+| **Schedule drafts** — build/publish | insert/update | ❌ local-only (multi-table drafts) | ❌ | ❌ TODO |
 | **Members / invites** — add / invite | insert | invite API exists (`/api/invite`); in-app add ❌ | — | ⚠️ partial |
+| **Chat disable-DMs toggle** | update org flag | ❌ local-only (needs org read on load) | ❌ | ❌ TODO |
 | **Pin message / schedule settings / mark-read** | update | ❌ local-only (UI-state, low stakes) | notifications reload | ⚠️ |
+
+### Newly persisted this pass
+Facilities (+ pool), shift reports (submit + review), patron counts, and checklist
+completions now write to Supabase and reload on refresh. A Vitest suite
+(`store-persistence.test.ts`) asserts each of these controls calls the DB (no
+no-ops). Attribution columns that reference `profiles(id)` (patron `recorded_by`,
+checklist `completed_by`) are omitted so the row persists — the app attributes by
+`staff_profiles.id`, so wiring true actor attribution needs the staff↔profile
+resolution noted below.
 
 ## Remaining work (per-entity, prioritized)
 

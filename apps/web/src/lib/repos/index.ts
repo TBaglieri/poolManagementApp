@@ -22,6 +22,8 @@ import {
   type Facility, type StaffProfile, type Organization, type Channel, type Message,
   type Notification, type ChemicalLog, type MaintenanceIssue, type TimeClockEntry,
   type TimeOffRequest, type Shift, type ShiftTradeRequest, type RequestStatus,
+  type ShiftReport, type PatronCount, type ChecklistCompletion,
+  shiftReports as seedReports, patronCounts as seedPatron, checklistCompletions as seedChecklists,
 } from "@poolops/shared";
 import { activeMode, selectOr, insertOr, updateOr, db, type RepoResult, type DataSource } from "./db";
 
@@ -120,6 +122,31 @@ function mapTimeOff(r: any): TimeOffRequest {
   };
 }
 
+function mapShiftReport(r: any): ShiftReport {
+  return {
+    id: s(r.id), facilityId: s(r.facility_id), staffId: s(r.staff_id), shiftLabel: s(r.shift_label),
+    date: s(r.report_date ?? r.created_at), weather: s(r.weather), staffingNotes: s(r.staffing_notes),
+    incidents: s(r.incidents), maintenanceConcerns: s(r.maintenance_concerns), patronIssues: s(r.patron_issues),
+    suppliesNeeded: s(r.supplies_needed), managerNotes: r.manager_notes ?? undefined,
+    reviewStatus: (r.review_status ?? "submitted"),
+  };
+}
+
+function mapPatron(r: any): PatronCount {
+  return {
+    id: s(r.id), facilityId: s(r.facility_id), recordedAt: s(r.created_at), recordedBy: s(r.recorded_by),
+    timeSlot: s(r.time_slot), count: n(r.count),
+  };
+}
+
+function mapChecklistCompletion(r: any): ChecklistCompletion {
+  return {
+    id: s(r.id), templateId: s(r.template_id), facilityId: s(r.facility_id), completedBy: s(r.completed_by),
+    completedAt: s(r.created_at), status: (r.status ?? "complete"), checkedItemIds: arr(r.checked_item_ids),
+    note: r.note ?? undefined,
+  };
+}
+
 /* ------------------------------- repositories ----------------------------- */
 
 export const repos = {
@@ -140,6 +167,23 @@ export const repos = {
   facilities: {
     list: () => selectOr<any, Facility>("facilities", seedFacilities, mapFacility),
     create: (payload: Record<string, unknown>) => insertOr<Facility>("facilities", payload, mapFacility),
+    createPool: (payload: Record<string, unknown>) => insertOr("pools", payload),
+  },
+
+  // Shift reports, patron counts, checklist completions, onboarding — org id is
+  // stamped by the DB trigger (supabase/org-defaults.sql), so payloads omit it.
+  reports: {
+    list: () => selectOr<any, ShiftReport>("shift_reports", seedReports, mapShiftReport, (q) => q.order("created_at", { ascending: false })),
+    create: (payload: Record<string, unknown>) => insertOr<ShiftReport>("shift_reports", payload, mapShiftReport),
+    update: (id: string, patch: Record<string, unknown>) => updateOr<ShiftReport>("shift_reports", id, patch, mapShiftReport),
+  },
+  patron: {
+    list: () => selectOr<any, PatronCount>("patron_counts", seedPatron, mapPatron, (q) => q.order("created_at", { ascending: false })),
+    create: (payload: Record<string, unknown>) => insertOr<PatronCount>("patron_counts", payload, mapPatron),
+  },
+  checklists: {
+    list: () => selectOr<any, ChecklistCompletion>("checklist_completions", seedChecklists, mapChecklistCompletion, (q) => q.order("created_at", { ascending: false })),
+    create: (payload: Record<string, unknown>) => insertOr<ChecklistCompletion>("checklist_completions", payload, mapChecklistCompletion),
   },
 
   staff: {
