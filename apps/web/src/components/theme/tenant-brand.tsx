@@ -47,25 +47,25 @@ export function TenantMark({ size = "md", className, mono = false }: { size?: Si
     );
   }
 
-  // Explicit icon asset URL (e.g. the Villas houses cutout). Theme-swap to the
-  // light variant on dark chrome so a fixed-color line-art mark stays legible.
+  // Explicit icon asset URL (e.g. the Villas houses mark). Render it INSIDE the
+  // tenant's brand tile — the same colored box the monogram/inline marks get — so an
+  // image-logo tenant looks branded, not like an empty/letterboxed square. The mark
+  // sits ON a colored tile, so use the light-on-dark variant when the tenant ships
+  // one; `object-contain` keeps the whole logo visible (no crop), and the tile fills
+  // the box edge-to-edge with only a hair of inset so the art never touches a corner.
   const iconUrl = icon && !icon.startsWith("inline:") ? icon : undefined;
   if (iconUrl) {
-    const iconDark = config.branding.iconDark;
-    // On a forced-dark surface (mono, e.g. the navy login panel), use the light
-    // cutout so a dark line-art mark stays legible.
-    if (mono && iconDark) {
-      // eslint-disable-next-line @next/next/no-img-element
-      return <img src={iconDark} alt={`${config.displayName} logo`} className={cn("object-contain", s.box, className)} />;
-    }
+    const tileIcon = config.branding.iconDark ?? iconUrl;
     return (
-      <span className={cn("relative inline-flex shrink-0 items-center justify-center", s.box, className)}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={iconUrl} alt={`${config.displayName} logo`} className={cn("h-full w-full object-contain", iconDark && "dark:hidden")} />
-        {iconDark && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={iconDark} alt="" aria-hidden className="absolute inset-0 hidden h-full w-full object-contain dark:block" />
+      <span
+        className={cn(
+          "relative flex shrink-0 items-center justify-center overflow-hidden bg-gradient-to-br from-brand-400 to-brand-700 shadow-sm ring-1 ring-brand-700/20",
+          s.box, className,
         )}
+        aria-hidden
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={tileIcon} alt={`${config.displayName} logo`} className="h-full w-full object-contain p-[12%]" />
       </span>
     );
   }
