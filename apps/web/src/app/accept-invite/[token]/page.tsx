@@ -4,17 +4,18 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle2, MailCheck, ArrowRight, Lock, AlertCircle, Loader2 } from "lucide-react";
-import { getRole, facilityName, landingPathForRole, type RoleSlug } from "@poolops/shared";
+import { getRole, facilityName, type RoleSlug } from "@poolops/shared";
 import { getEffectiveDataMode } from "@poolops/supabase";
 import { useInvites } from "@/lib/invites";
 import { signUp, signIn } from "@/lib/auth";
 import { useSession } from "@/lib/session";
 import { resolveUserTenant } from "@/lib/tenant/user-tenant";
+import { resolveTenantAndRedirect, hardNavigateTenant } from "@/lib/tenant/post-auth-redirect";
 import { validatePassword, inviteAcceptable } from "@/lib/accounts";
 import { Logo } from "@/components/brand";
 import { RoleBadge } from "@/components/ui/badge";
-
 import { PasswordInput } from "@/components/ui/password-input";
+
 interface ResolvedInvite {
   email: string;
   firstName: string;
@@ -97,7 +98,6 @@ export default function AcceptInvitePage({ params }: { params: { token: string }
     if (supabaseMode) {
       // Server-side: create org membership + LINK the staff profile to this new
       // auth id, so My Shifts / clock-in work the instant they land in-app.
-      let dest = "/dashboard";
       if (newUserId) {
         try { await fetch("/api/invite/accept", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, userId: newUserId }) }); } catch { /* best-effort */ }
       }
@@ -106,14 +106,22 @@ export default function AcceptInvitePage({ params }: { params: { token: string }
       loginReal(invite.email, invite.role, true);
       setUserName(invite.firstName || invite.email.split("@")[0]);
       if (newUserId) {
+        // Session identity (staff link + org name) from the resolved tenant…
         const ut = await resolveUserTenant(newUserId);
         setStaffLink(ut.staffId, ut.staffLinked === true);
         if (ut.orgName) setRealOrg(ut.orgName, "small");
-        // Land invited staff (usually lifeguards) on a page they can access.
-        const home = landingPathForRole(ut.role ?? invite.role);
-        dest = ut.slug ? `/${ut.slug}${home}` : home;
+        // …then route through the ONE shared post-auth decision, with a HARD nav into
+        // the tenant — identical to login/reset, never a soft nav that leaves the
+        // client on the wrong config, and never a drop to root.
+        await resolveTenantAndRedirect(newUserId, {
+          onTenant: (choice) => setTimeout(() => hardNavigateTenant(choice), 1000),
+          onPicker: (memberships) => setTimeout(() => hardNavigateTenant(memberships[0]), 1000),
+          onPlatform: () => { setTimeout(() => router.push("/dashboard"), 1000); },
+          onNoAccess: () => { setTimeout(() => router.push("/dashboard"), 1000); },
+        });
+      } else {
+        setTimeout(() => router.push("/dashboard"), 1000);
       }
-      setTimeout(() => router.push(dest), 1000);
     }
   };
 

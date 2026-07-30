@@ -3,12 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Lock, Loader2, Check, AlertCircle } from "lucide-react";
-import { isPlatformSlug, isDemoTenant, landingPathForRole } from "@poolops/shared";
+import { Lock, Loader2, Check, AlertCircle, ArrowRight } from "lucide-react";
+import { isPlatformSlug, isDemoTenant, type TenantChoice } from "@poolops/shared";
 import { getBrowserSupabase, getEffectiveDataMode } from "@poolops/supabase";
 import { useTenantConfig } from "@/lib/tenant/provider";
-import { updatePassword } from "@/lib/auth";
-import { resolveUserTenant } from "@/lib/tenant/user-tenant";
+import { updatePassword, signOut } from "@/lib/auth";
+import { resolveTenantAndRedirect, hardNavigateTenant } from "@/lib/tenant/post-auth-redirect";
 import { validatePassword } from "@/lib/accounts";
 import { TenantWordmark } from "@/components/theme/tenant-brand";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -28,6 +28,10 @@ export default function ResetPasswordPage() {
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Multi-tenant users pick their workspace (never a silent guess); a valid account
+  // with no tenant provisioned hits a clear dead-end, never a drop into root.
+  const [pickTenant, setPickTenant] = useState<TenantChoice[] | null>(null);
+  const [noAccess, setNoAccess] = useState(false);
 
   // The recovery link establishes a temporary session (detectSessionInUrl). Wait for
   // it, or the PASSWORD_RECOVERY event, before allowing a new password to be set.
@@ -55,19 +59,22 @@ export default function ResetPasswordPage() {
     setBusy(true);
     const res = await updatePassword(password);
     if (!res.ok) { setBusy(false); setError(res.error || "Couldn't update your password. The link may have expired."); return; }
-    setPhase("done");
 
-    // Establish the real session identity, then land in the right tenant.
+    // The recovery link already established the session, and updateUser refreshed it.
+    // Resolve the real identity and route through the ONE shared post-auth decision —
+    // identical to login. A tenant user ALWAYS lands in their tenant, never root.
     const client = getBrowserSupabase();
     const { data } = (await client?.auth.getUser()) ?? { data: { user: null } };
-    let dest = "/dashboard";
-    if (data.user) {
-      const ut = await resolveUserTenant(data.user.id);
-      const home = landingPathForRole(ut.role ?? "lifeguard");
-      dest = ut.slug ? `/${ut.slug}${home}` : home;
-    }
-    setBusy(false);
-    setTimeout(() => router.push(dest), 1200);
+    if (!data.user) { setBusy(false); setError("Your session expired. Request a new reset link."); return; }
+
+    await resolveTenantAndRedirect(data.user.id, {
+      onTenant: (choice) => { setPhase("done"); setTimeout(() => hardNavigateTenant(choice), 1200); },
+      onPicker: (memberships) => { setBusy(false); setPickTenant(memberships); },
+      onPlatform: () => { setPhase("done"); setTimeout(() => router.push("/dashboard"), 1200); },
+      // Password was reset, but the account has no workspace — a clear dead-end.
+      // Drop the session so a half-authed state can't linger.
+      onNoAccess: async () => { setBusy(false); await signOut(); setNoAccess(true); },
+    });
   };
 
   return (
@@ -99,7 +106,36 @@ export default function ResetPasswordPage() {
             </div>
           )}
 
-          {phase === "ready" && (
+          {/* Password reset, but the account belongs to no workspace — a clear
+              dead-end, NEVER a silent drop into the platform/root context. */}
+          {noAccess && (
+            <div className="text-center">
+              <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-600"><AlertCircle className="h-7 w-7" /></span>
+              <h1 className="mt-4 text-lg font-bold text-slate-900 dark:text-slate-100">Password updated</h1>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Your new password is set, but your account isn't a member of any workspace yet. Contact your administrator to be added.</p>
+              <Link href={loginHref} className="btn-secondary mt-5 inline-flex">Back to sign in</Link>
+            </div>
+          )}
+
+          {/* More than one workspace → let the user choose (no silent guess). Enter
+              with a HARD navigation so the tenant context loads fresh. */}
+          {pickTenant && pickTenant.length > 0 && (
+            <div>
+              <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">Password updated</h1>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Choose the workspace to continue to.</p>
+              <div className="mt-4 grid gap-2">
+                {pickTenant.map((t) => (
+                  <button key={t.slug} type="button" onClick={() => hardNavigateTenant(t)}
+                    className="group flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-left text-sm font-medium text-slate-800 transition-colors hover:border-brand-300 hover:bg-brand-50/40 dark:border-slate-700 dark:text-slate-100">
+                    <span className="truncate">{t.orgName ?? t.slug}</span>
+                    <ArrowRight className="h-4 w-4 shrink-0 text-slate-400 group-hover:text-brand-600" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {phase === "ready" && !pickTenant && !noAccess && (
             <>
               <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Set a new password</h1>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Choose a strong password you'll remember.</p>

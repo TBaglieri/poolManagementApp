@@ -4,12 +4,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, Monitor, Smartphone, Mail, Lock, Check, Loader2, AlertCircle, Database } from "lucide-react";
-import { ROLE_LIST, getRole, isDemoTenant, isPlatformSlug, postAuthDestination, type RoleSlug, type TenantChoice } from "@poolops/shared";
+import { ROLE_LIST, getRole, isDemoTenant, isPlatformSlug, type RoleSlug, type TenantChoice } from "@poolops/shared";
 import { getEffectiveDataMode } from "@poolops/supabase";
 import { useSession } from "@/lib/session";
 import { useTenantConfig } from "@/lib/tenant/provider";
 import { allowsDemoLoginFallback } from "@/lib/demo-mode";
-import { resolveUserMemberships } from "@/lib/tenant/user-tenant";
+import { resolveTenantAndRedirect } from "@/lib/tenant/post-auth-redirect";
 import { signIn, signOut } from "@/lib/auth";
 import { TenantWordmark } from "@/components/theme/tenant-brand";
 import { RoleBadge } from "@/components/ui/badge";
@@ -76,19 +76,19 @@ export default function LoginPage() {
     const res = await signIn(email, password);
     if (!res.ok) { setBusy(false); setAuthError(res.error); return; }
 
-    // Resolve EVERY active membership and let the shared decision route the user —
-    // one tenant → enter it; many → picker; none (non-platform) → no-access.
-    const memberships = res.user ? await resolveUserMemberships(res.user.id) : [];
-    const dest = postAuthDestination(memberships);
-    setBusy(false);
+    if (!res.user) { setBusy(false); await signOut(); setNoAccess(true); return; }
 
-    if (dest.kind === "tenant") { enterTenant(dest); return; }
-    if (dest.kind === "picker") { setPickTenant(dest.memberships); return; }
-    if (dest.kind === "platform") { router.push("/dashboard"); return; }
-    // no-access: authenticated, but no tenant provisioned. Drop the session so a
-    // half-authed state can't linger, and show the dead-end message.
-    await signOut();
-    setNoAccess(true);
+    // Route through the ONE shared post-auth decision (identical to reset, invite,
+    // and any callback): one tenant → enter it; many → picker; platform → platform;
+    // none → no-access. A tenant user can never fall through to root here.
+    await resolveTenantAndRedirect(res.user.id, {
+      onTenant: (choice) => enterTenant(choice), // hard nav — page is leaving
+      onPicker: (memberships) => { setBusy(false); setPickTenant(memberships); },
+      onPlatform: () => { setBusy(false); router.push("/dashboard"); },
+      // no-access: authenticated, but no tenant provisioned. Drop the session so a
+      // half-authed state can't linger, and show the dead-end message.
+      onNoAccess: async () => { setBusy(false); await signOut(); setNoAccess(true); },
+    });
   };
 
   const others = ROLE_LIST.filter((r) => !FEATURED.includes(r.slug));
