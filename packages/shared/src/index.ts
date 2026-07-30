@@ -4,3 +4,4 @@ export * from "./utils";
 export * from "./data";
 export * from "./tenant";
 export * from "./staff/link";
+export * from "./chat";

@@ -385,7 +385,10 @@ export interface Document {
 /* Communications                                                              */
 /* -------------------------------------------------------------------------- */
 
-export type ChannelKind = "all_staff" | "role" | "facility" | "admin";
+export type ChannelKind = "all_staff" | "role" | "facility" | "admin" | "group" | "dm";
+
+/** How a channel behaves: a broadcast announcement channel, a custom group chat, or a 1:1 DM. */
+export type ChatType = "announcement" | "group" | "dm";
 
 export interface Channel {
   id: ID;
@@ -395,6 +398,14 @@ export interface Channel {
   facilityId?: ID;
   restrictedToRoles?: RoleSlug[];
   unread: number;
+  /** Surface this channel is. Absent → an announcement channel (back-compat). */
+  chatType?: ChatType;
+  /** Tenant this channel belongs to — chats and DMs never cross tenants. */
+  organizationId?: ID;
+  /** staff_profiles.id of the creator (for group/dm) — creators can manage members. */
+  createdBy?: ID;
+  /** Explicit member roster for group chats and DMs (staff_profiles.ids). */
+  memberIds?: ID[];
 }
 
 export type MessageKind =
