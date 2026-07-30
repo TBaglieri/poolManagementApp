@@ -5,7 +5,8 @@ import { useMemo, useState } from "react";
 import { FlaskConical, AlertTriangle, CheckCircle2, Beaker } from "lucide-react";
 import {
   getFacility, staffName,
-  CHEMICAL_FIELDS, enabledChemicalFields, type ChemicalLog,
+  CHEMICAL_FIELDS, enabledChemicalFields,
+  chemMonthKey, chemMonthLabel, chemMonthsForLogs, type ChemicalLog,
 } from "@poolops/shared";
 import { useAccess, useMyStaffId } from "@/lib/access";
 import { useDemo } from "@/lib/store";
@@ -71,6 +72,10 @@ export default function ChemicalsPage() {
   const [open, setOpen] = useState(false);
   const [chartFacility, setChartFacility] = useState(facilities[0]?.id ?? "");
   const [result, setResult] = useState<string[] | null>(null);
+  // Chem logs roll over by month (Fix 7): the current month is the working sheet;
+  // prior months stay viewable via this selector. Nothing is deleted on rollover.
+  const currentMonth = chemMonthKey(new Date().toISOString(), tz);
+  const [month, setMonth] = useState(currentMonth);
   const [form, setForm] = useState({
     facilityId: facilities[0]?.id ?? "", poolId: pools[0]?.id ?? "", takenAt: toLocalInput(new Date()),
     freeChlorine: "2.4", combinedChlorine: "0.2", ph: "7.5", alkalinity: "100",
@@ -84,6 +89,10 @@ export default function ChemicalsPage() {
   const todayKey = dayInTz(new Date().toISOString(), tz);
   const todayLogs = visible.filter((c) => dayInTz(takenOf(c), tz) === todayKey);
   const warnings = visible.filter((c) => c.outOfRange.length > 0);
+  // Month rollover: the months that have readings (+ the current working month),
+  // and the readings for the currently-selected month sheet.
+  const months = chemMonthsForLogs(visible, tz, currentMonth);
+  const monthLogs = visible.filter((c) => chemMonthKey(takenOf(c), tz) === month);
 
   // Pool-closure status: for each facility, look at its most recent reading. If a
   // safety-critical parameter (chlorine / pH) is out of range, recommend closure.
@@ -206,7 +215,12 @@ export default function ChemicalsPage() {
         ) : <p className="py-10 text-center text-sm text-slate-400">No readings for this facility.</p>}
       </SectionCard>
 
-      <SectionCard title="Reading history" subtitle="Audit trail with entered-by & timestamp">
+      <SectionCard title="Reading history" subtitle={`${chemMonthLabel(month)} sheet · ${monthLogs.length} reading${monthLogs.length === 1 ? "" : "s"}${month === currentMonth ? " (current month)" : ""}`}
+        actions={
+          <Select value={month} onChange={(e) => setMonth(e.target.value)} className="w-auto">
+            {months.map((m) => <option key={m} value={m}>{chemMonthLabel(m)}{m === currentMonth ? " · current" : ""}</option>)}
+          </Select>
+        }>
         <div className="scrollbar-thin overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -217,7 +231,12 @@ export default function ChemicalsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {visible.slice(0, 12).map((c) => (
+              {monthLogs.length === 0 && (
+                <tr><td colSpan={fields.length + 2} className="px-3 py-8 text-center text-sm text-slate-400">
+                  {month === currentMonth ? "No readings this month yet — this month's sheet starts here." : "No readings were logged this month."}
+                </td></tr>
+              )}
+              {monthLogs.slice(0, 60).map((c) => (
                 <tr key={c.id}>
                   <td className="px-3 py-2.5">
                     <p className="font-medium text-slate-700">{facName(c.facilityId)}</p>

@@ -4,6 +4,7 @@ import * as seed from "./seed";
 export * from "./seed";
 export * from "./labels";
 export * from "./pricing";
+export * from "./chem-months";
 
 /** Convenience lookup maps over the demo dataset. */
 export const staffById: Record<ID, StaffProfile> = Object.fromEntries(
