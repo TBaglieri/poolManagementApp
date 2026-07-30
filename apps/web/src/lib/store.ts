@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import {
   getFacility, staffName, uid,
-  type ChemicalLog, type ChemicalRange, type ChecklistCompletion, type ID,
+  type ChemicalLog, type ChecklistCompletion, type ID,
   type MaintenanceIssue, type Message, type MessageKind, type Notification, type PatronCount,
   type RequestStatus, type ShiftReport, type ShiftTradeRequest, type TimeClockEntry,
   type TimeOffRequest, type IssueStatus, type MessageTemplateKey, type SubmissionStatus,
@@ -13,7 +13,7 @@ import {
   maintenanceIssues as seedIssues, messages as seedMessages, notifications as seedNotifications,
   onboardingSubmissions as seedOnboarding, patronCounts as seedPatron, shiftReports as seedReports,
   shiftTradeRequests as seedTrades, shifts as seedShifts, timeClockEntries as seedClock, timeOffRequests as seedTimeOff,
-  facilities as seedFacilities, pools as seedPools, DEFAULT_CHEMICAL_RANGES,
+  facilities as seedFacilities, pools as seedPools, DEFAULT_CHEMICAL_RANGES, flagOutOfRange,
 } from "@poolops/shared";
 import type { ScheduleDraft } from "@poolops/scheduling";
 import { repos, activeMode } from "./repos";
@@ -35,15 +35,6 @@ export interface PostOptions {
 
 const clone = <T,>(v: T): T =>
   typeof structuredClone === "function" ? structuredClone(v) : JSON.parse(JSON.stringify(v));
-
-/** Flag values outside the given ranges. Pure so it works for any facility source. */
-function chemFlagsFor(r: ChemicalRange, values: Record<string, number>): string[] {
-  return (Object.keys(r) as (keyof ChemicalRange)[]).filter((k) => {
-    const [min, max] = r[k];
-    const v = values[k];
-    return typeof v === "number" && (v < min || v > max);
-  });
-}
 
 interface DemoState {
   /**
@@ -100,7 +91,9 @@ interface DemoState {
   addIssue: (issue: Omit<MaintenanceIssue, "id" | "reportedAt">) => void;
   setIssueStatus: (id: ID, status: IssueStatus) => void;
   assignIssue: (id: ID, staffId: ID) => void;
-  addChemicalLog: (log: Omit<ChemicalLog, "id" | "recordedAt" | "outOfRange">) => string[];
+  /** `enabledFields` (from the tenant's chemical config) restricts which fields can be
+   *  flagged out of range — a field the tenant doesn't record never trips an alert. */
+  addChemicalLog: (log: Omit<ChemicalLog, "id" | "recordedAt" | "outOfRange">, enabledFields?: readonly string[]) => string[];
   postMessage: (channelId: ID, senderId: ID, body: string, opts?: PostOptions) => void;
   togglePinMessage: (id: ID) => void;
   completeChecklist: (c: Omit<ChecklistCompletion, "id" | "completedAt">) => void;
@@ -367,7 +360,7 @@ export const useDemo = create<DemoState>((set, get) => ({
     if (activeMode() === "supabase") void repos.maintenance.update(id, { assigned_to: staffId });
   },
 
-  addChemicalLog: (log) => {
+  addChemicalLog: (log, enabledFields) => {
     const values = {
       freeChlorine: log.freeChlorine, combinedChlorine: log.combinedChlorine, ph: log.ph,
       alkalinity: log.alkalinity, calciumHardness: log.calciumHardness,
@@ -377,7 +370,7 @@ export const useDemo = create<DemoState>((set, get) => ({
     // works), then the static seed, then defaults — so out-of-range detection always
     // runs, even for a facility added at runtime.
     const facility = get().facilities.find((f) => f.id === log.facilityId) ?? getFacility(log.facilityId);
-    const flags = chemFlagsFor(facility?.chemicalRanges ?? DEFAULT_CHEMICAL_RANGES, values);
+    const flags = flagOutOfRange(facility?.chemicalRanges ?? DEFAULT_CHEMICAL_RANGES, values, enabledFields);
     const nowIso = new Date().toISOString();
     // The reading's taken-at time (defaults to now, user may backdate); recordedAt is
     // the audit/created time and is always "now".

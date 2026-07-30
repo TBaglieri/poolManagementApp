@@ -84,6 +84,16 @@ export const OperationsSchema = z.object({
    * shared code. Villas sets 3; another pool may set 1, 5, or leave it unset.
    */
   expectedReadingsPerDay: z.number().int().nonnegative().optional(),
+  /**
+   * Which chemical fields THIS tenant records, by key (see CHEMICAL_FIELDS). When
+   * unset, the tenant gets the full panel — so existing tenants are unchanged and a
+   * future customer can always switch every field back on via config, no new code.
+   * Villas records only ["freeChlorine", "ph"].
+   */
+  chemicalFields: z
+    .array(z.enum(["freeChlorine", "combinedChlorine", "ph", "alkalinity", "calciumHardness", "cyanuricAcid", "waterTemp"]))
+    .min(1)
+    .optional(),
   chemicalRanges: z.object({
     freeChlorine: Range,
     combinedChlorine: Range,

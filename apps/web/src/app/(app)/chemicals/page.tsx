@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { FlaskConical, AlertTriangle, CheckCircle2, Beaker } from "lucide-react";
 import {
   getFacility, staffName,
-  CHEMICAL_FIELDS, type ChemicalLog,
+  CHEMICAL_FIELDS, enabledChemicalFields, type ChemicalLog,
 } from "@poolops/shared";
 import { useAccess, useMyStaffId } from "@/lib/access";
 import { useDemo } from "@/lib/store";
@@ -58,6 +58,11 @@ export default function ChemicalsPage() {
   const { autoSelected: singleFacility, only: soleFacility } = resolveFacilityChoice(facilities);
   const config = useTenantConfig();
   const tz = config.timezone || "America/New_York";
+  // Only the chemical fields THIS tenant records (per tenant config) — Villas logs
+  // just chlorine + pH; the full panel is the default for everyone else.
+  const fields = enabledChemicalFields(config);
+  const fieldKeys = fields.map((f) => f.key) as string[];
+  const showsField = (key: string) => fieldKeys.includes(key);
   const expectedPerDay = config.operations.expectedReadingsPerDay; // per-tenant; Villas=3, others may be unset
   const chemicals = useDemo((s) => s.chemicals);
   const addLog = useDemo((s) => s.addChemicalLog);
@@ -114,7 +119,7 @@ export default function ChemicalsPage() {
       ph: Number(form.ph), alkalinity: Number(form.alkalinity), calciumHardness: Number(form.calciumHardness),
       cyanuricAcid: Number(form.cyanuricAcid), waterTemp: Number(form.waterTemp),
       notes: form.notes || undefined, correctiveAction: form.correctiveAction || undefined,
-    });
+    }, fieldKeys); // only the tenant's enabled fields can be flagged out of range
     setResult(flags);
   };
 
@@ -193,10 +198,11 @@ export default function ChemicalsPage() {
         {chartData.length > 0 ? (
           <MultiLine data={chartData} xKey="t" lines={[
             // Free chlorine tracks the tenant brand; CC/pH are distinct series colors.
-            { key: "FC", color: brandLine, name: "Free Cl" },
-            { key: "CC", color: "#f59e0b", name: "Comb. Cl" },
-            { key: "pH", color: "#6366f1", name: "pH" },
-          ]} />
+            // Only chart the series the tenant actually records.
+            { key: "FC", color: brandLine, name: "Free Cl", field: "freeChlorine" },
+            { key: "CC", color: "#f59e0b", name: "Comb. Cl", field: "combinedChlorine" },
+            { key: "pH", color: "#6366f1", name: "pH", field: "ph" },
+          ].filter((l) => showsField(l.field)).map(({ field, ...l }) => l)} />
         ) : <p className="py-10 text-center text-sm text-slate-400">No readings for this facility.</p>}
       </SectionCard>
 
@@ -206,7 +212,7 @@ export default function ChemicalsPage() {
             <thead>
               <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-400">
                 <th className="px-3 py-2.5 text-left">Facility / Pool</th>
-                {CHEMICAL_FIELDS.map((f) => <th key={f.key} className="px-2 py-2.5 text-right">{f.short}</th>)}
+                {fields.map((f) => <th key={f.key} className="px-2 py-2.5 text-right">{f.short}</th>)}
                 <th className="px-3 py-2.5 text-left">By / When</th>
               </tr>
             </thead>
@@ -217,9 +223,10 @@ export default function ChemicalsPage() {
                     <p className="font-medium text-slate-700">{facName(c.facilityId)}</p>
                     {c.outOfRange.length > 0 && <Badge intent="danger" className="mt-0.5"><AlertTriangle className="h-3 w-3" /> {c.outOfRange.length} flagged</Badge>}
                   </td>
-                  {CHEMICAL_FIELDS.map((f) => {
+                  {fields.map((f) => {
                     const flagged = c.outOfRange.includes(f.key);
-                    return <td key={f.key} className={`px-2 py-2.5 text-right ${flagged ? "font-bold text-rose-600" : "text-slate-600"}`}>{(c as unknown as Record<string, number>)[f.key]}</td>;
+                    const val = (c as unknown as Record<string, number>)[f.key];
+                    return <td key={f.key} className={`px-2 py-2.5 text-right ${flagged ? "font-bold text-rose-600" : "text-slate-600"}`}>{typeof val === "number" && Number.isFinite(val) ? val : "—"}</td>;
                   })}
                   <td className="px-3 py-2.5"><p className="text-slate-600">{staffName(c.recordedBy)}</p><p className="text-xs text-slate-400">{fmtInTz(takenOf(c), tz, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</p></td>
                 </tr>
@@ -255,7 +262,7 @@ export default function ChemicalsPage() {
             {isFuture && <p className="flex items-center gap-1.5 text-xs text-rose-600"><AlertTriangle className="h-3.5 w-3.5" /> The taken-at time can't be in the future.</p>}
             {!isFuture && tooOld && <p className="flex items-center gap-1.5 text-xs text-amber-600"><AlertTriangle className="h-3.5 w-3.5" /> This reading is backdated more than two weeks — double-check the date.</p>}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {CHEMICAL_FIELDS.map((f) => (
+              {fields.map((f) => (
                 <Field key={f.key} label={`${f.short} ${f.unit ? `(${f.unit})` : ""}`}>
                   {/* Decimal keypad + larger target: fast, low-typing entry on a phone. */}
                   <Input type="number" inputMode="decimal" step="0.1" value={(form as Record<string, string>)[f.key]}

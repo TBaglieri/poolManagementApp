@@ -3,9 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { FlaskConical, CheckCircle2, AlertTriangle, ArrowLeft } from "lucide-react";
-import { facilities, pools, CHEMICAL_FIELDS, type ID } from "@poolops/shared";
+import { facilities, pools, enabledChemicalFields, type ID } from "@poolops/shared";
 import { useAccess } from "@/lib/access";
 import { useDemo } from "@/lib/store";
+import { useTenantConfig } from "@/lib/tenant/provider";
 import { AccessRestricted } from "@/components/ui/permission-gate";
 import { cn } from "@/lib/cn";
 
@@ -16,6 +17,10 @@ const DEFAULTS: Record<string, number> = {
 export default function MobileChemicals() {
   const { can, staffId, facilityId, staff: me } = useAccess();
   const addLog = useDemo((s) => s.addChemicalLog);
+  const config = useTenantConfig();
+  // Only the chemical fields this tenant records (Villas → chlorine + pH).
+  const fields = enabledChemicalFields(config);
+  const fieldKeys = fields.map((f) => f.key) as string[];
 
   const [facility, setFacility] = useState<ID>(facilityId === "all" ? (me?.homeFacilityId ?? "fac_maplewood") : facilityId);
   const [values, setValues] = useState<Record<string, number>>(DEFAULTS);
@@ -33,7 +38,7 @@ export default function MobileChemicals() {
       freeChlorine: values.freeChlorine, combinedChlorine: values.combinedChlorine, ph: values.ph,
       alkalinity: values.alkalinity, calciumHardness: values.calciumHardness,
       cyanuricAcid: values.cyanuricAcid, waterTemp: values.waterTemp,
-    });
+    }, fieldKeys); // only the tenant's enabled fields can be flagged
     setFlags(result);
   };
 
@@ -61,7 +66,7 @@ export default function MobileChemicals() {
           </select>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          {CHEMICAL_FIELDS.map((f) => (
+          {fields.map((f) => (
             <div key={f.key}>
               <label className="mb-1 block text-xs font-medium text-slate-600">{f.short} {f.unit && <span className="text-slate-400">({f.unit})</span>}</label>
               <input type="number" step="0.1" value={values[f.key]} onChange={(e) => set(f.key, Number(e.target.value))} className="input" />

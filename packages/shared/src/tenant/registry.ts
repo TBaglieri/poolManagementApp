@@ -144,6 +144,9 @@ export const TENANT_INPUTS: Record<string, TenantConfigInput> = {
       // Villas tests its pool THREE times a day — a Villas config value, not a
       // shared-code default. Other tenants set their own (or leave it unset).
       expectedReadingsPerDay: 3,
+      // Villas records only chlorine + pH each day. The rest of the panel stays
+      // available in the product — a larger facility switches it back on via config.
+      chemicalFields: ["freeChlorine", "ph"],
     },
   },
 };

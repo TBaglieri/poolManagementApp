@@ -1,5 +1,5 @@
 import type {
-  CertStatus, CertificationType, ChannelKind, DocumentCategory, EmploymentStatus,
+  CertStatus, CertificationType, ChannelKind, ChemicalRange, DocumentCategory, EmploymentStatus,
   FacilityStatus, InspectionFeature, IssuePriority, IssueStatus, LessonLevel,
   MessageTemplateKey, OnboardingStepKey, OrganizationType, PayrollStatus, PoolType,
   RequestStatus, ShiftPosition, StaffStatusFlag, SubmissionStatus,
@@ -179,3 +179,44 @@ export const CHEMICAL_FIELDS = [
   { key: "cyanuricAcid", label: "Cyanuric Acid", unit: "ppm", short: "CYA" },
   { key: "waterTemp", label: "Water Temp", unit: "°F", short: "Temp" },
 ] as const;
+
+export type ChemicalFieldMeta = (typeof CHEMICAL_FIELDS)[number];
+export type ChemicalFieldKey = ChemicalFieldMeta["key"];
+
+/** All chemical field keys, in canonical order — the full panel every tenant gets by default. */
+export const CHEMICAL_FIELD_KEYS = CHEMICAL_FIELDS.map((f) => f.key) as readonly ChemicalFieldKey[];
+
+/**
+ * The chemical fields ACTIVE for a tenant, in canonical order. Which fields a tenant
+ * records is per-tenant config (`operations.chemicalFields`) — NEVER hardcoded. When
+ * unset or empty, every tenant gets the full panel, so existing tenants are unchanged;
+ * Villas sets only ["freeChlorine", "ph"] and so logs just chlorine + pH.
+ */
+export function enabledChemicalFields(
+  config?: { operations?: { chemicalFields?: readonly string[] } },
+): ChemicalFieldMeta[] {
+  const enabled = config?.operations?.chemicalFields;
+  if (!enabled || enabled.length === 0) return [...CHEMICAL_FIELDS];
+  const active = new Set(enabled);
+  return CHEMICAL_FIELDS.filter((f) => active.has(f.key));
+}
+
+/**
+ * Flag the chemical values outside their configured safe ranges. When `enabledKeys`
+ * is given, ONLY those fields are checked — so a tenant that doesn't record a field
+ * (e.g. Villas + combined chlorine) can never trip an out-of-range alert on it, while
+ * the fields it DOES record (chlorine, pH) still fire normally.
+ */
+export function flagOutOfRange(
+  ranges: ChemicalRange,
+  values: Partial<Record<ChemicalFieldKey, number>>,
+  enabledKeys?: readonly string[],
+): string[] {
+  const allow = enabledKeys && enabledKeys.length > 0 ? new Set(enabledKeys) : null;
+  return (Object.keys(ranges) as ChemicalFieldKey[]).filter((k) => {
+    if (allow && !allow.has(k)) return false;
+    const [min, max] = ranges[k];
+    const v = values[k];
+    return typeof v === "number" && Number.isFinite(v) && (v < min || v > max);
+  });
+}
