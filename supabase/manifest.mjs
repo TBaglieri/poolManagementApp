@@ -30,6 +30,7 @@ export const MANIFEST = [
   { file: "auth-profile-trigger.sql",      phase: "setup",  desc: "Create a profile row on auth signup" },
   { file: "tenant-config.sql",             phase: "setup",  desc: "organizations.slug + config; seed Villas org" },
   { file: "rls-policies.sql",              phase: "setup",  desc: "Row-level security + helper functions" },
+  { file: "org-defaults.sql",              phase: "setup",  desc: "Auto-stamp organization_id on insert (persistence)" },
   { file: "rls-gaps.sql",                  phase: "setup",  desc: "Additional RLS coverage" },
   { file: "shift-reports-rls.sql",         phase: "setup",  desc: "RLS for shift reports" },
   { file: "chat.sql",                      phase: "setup",  desc: "Team chat: group/DM columns, membership + RLS, realtime" },

@@ -18,13 +18,20 @@ export function SupabaseHydrator() {
     let active = true;
 
     (async () => {
-      const [messages, channels, chemicals, issues, notifications, clock] = await Promise.all([
+      // Re-fetch EVERY slice we persist, so a create/edit/assign that was written to
+      // Supabase is still there after a refresh (previously time-off, trades, shifts,
+      // and facilities were written but never re-loaded, so they appeared to vanish).
+      const [messages, channels, chemicals, issues, notifications, clock, facilities, shifts, timeOff, trades] = await Promise.all([
         repos.chat.listMessages(),
         repos.chat.listChannels(),
         repos.chemicals.list(),
         repos.maintenance.list(),
         repos.notifications.list(),
         repos.timeClock.list(),
+        repos.facilities.list(),
+        repos.scheduling.listShifts(),
+        repos.timeOff.list(),
+        repos.trades.list(),
       ]);
       if (!active) return;
 
@@ -35,6 +42,10 @@ export function SupabaseHydrator() {
       if (issues.source === "supabase" && issues.data.length) next.issues = issues.data;
       if (notifications.source === "supabase" && notifications.data.length) next.notifications = notifications.data;
       if (clock.source === "supabase" && clock.data.length) next.clock = clock.data;
+      if (facilities.source === "supabase" && facilities.data.length) next.facilities = facilities.data;
+      if (shifts.source === "supabase" && shifts.data.length) next.shifts = shifts.data;
+      if (timeOff.source === "supabase" && timeOff.data.length) next.timeOff = timeOff.data;
+      if (trades.source === "supabase" && trades.data.length) next.trades = trades.data;
       if (Object.keys(next).length) hydrate(next);
     })().catch(() => { /* graceful: keep mock data */ });
 

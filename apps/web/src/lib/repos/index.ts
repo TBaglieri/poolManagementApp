@@ -165,18 +165,23 @@ export const repos = {
     // Best-effort persistence for team chat (group chats, DMs, membership). In mock
     // mode these no-op; in supabase mode RLS (supabase/chat.sql) enforces who may
     // create/join, so a lifeguard can't create a group chat via a raw call.
+    // organization_id is omitted on purpose — the BEFORE INSERT trigger
+    // (supabase/org-defaults.sql) stamps the caller's real org id from their JWT, so
+    // the mock-mode tenant slug never leaks into a uuid column.
     async createGroupChat(input: { id: string; name: string; description?: string; memberIds: string[]; createdBy: string; organizationId?: string }) {
-      await insertOr("channels", {
-        organization_id: input.organizationId, name: input.name, kind: "group", chat_type: "group",
+      const created = await insertOr<{ id: string }>("channels", {
+        name: input.name, kind: "group", chat_type: "group",
         description: input.description ?? null, created_by: input.createdBy,
-      });
-      await Promise.all(input.memberIds.map((pid) => insertOr("channel_members", { channel_id: input.id, profile_id: pid })));
+      }, (r) => ({ id: String(r.id) }));
+      const channelId = created.data?.id ?? input.id;
+      await Promise.all(input.memberIds.map((pid) => insertOr("channel_members", { channel_id: channelId, profile_id: pid })));
     },
     async createDirectChat(input: { id: string; fromStaffId: string; toStaffId: string; organizationId?: string }) {
-      await insertOr("channels", {
-        organization_id: input.organizationId, name: "Direct message", kind: "dm", chat_type: "dm", created_by: input.fromStaffId,
-      });
-      await Promise.all([input.fromStaffId, input.toStaffId].map((pid) => insertOr("channel_members", { channel_id: input.id, profile_id: pid })));
+      const created = await insertOr<{ id: string }>("channels", {
+        name: "Direct message", kind: "dm", chat_type: "dm", created_by: input.fromStaffId,
+      }, (r) => ({ id: String(r.id) }));
+      const channelId = created.data?.id ?? input.id;
+      await Promise.all([input.fromStaffId, input.toStaffId].map((pid) => insertOr("channel_members", { channel_id: channelId, profile_id: pid })));
     },
     async addChannelMember(channelId: string, profileId: string) {
       await insertOr("channel_members", { channel_id: channelId, profile_id: profileId });

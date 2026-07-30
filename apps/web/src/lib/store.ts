@@ -142,7 +142,8 @@ interface DemoState {
   setOnboardingStep: (staffId: ID, step: OnboardingStepKey, status: SubmissionStatus) => void;
   /** Replace store slices with live Supabase data (used by SupabaseHydrator). */
   hydrate: (partial: Partial<Pick<DemoState,
-    "messages" | "channels" | "chemicals" | "issues" | "notifications" | "clock" | "timeOff" | "trades" | "shifts">>) => void;
+    "messages" | "channels" | "chemicals" | "issues" | "notifications" | "clock"
+    | "timeOff" | "trades" | "shifts" | "facilities" | "pools">>) => void;
   /** True once the bundled demo dataset has been loaded (demo tenant only). */
   seeded: boolean;
   /**
