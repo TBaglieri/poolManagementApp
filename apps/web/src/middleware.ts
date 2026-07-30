@@ -77,6 +77,7 @@ export function middleware(req: NextRequest) {
   if (!REAL_TENANT_SOURCES.includes(resolution.source) && isPlatformPath(pathname)) {
     const headers = new Headers(req.headers);
     headers.set("x-platform", "1");
+    headers.set("x-pathname", pathname);
     headers.delete("x-tenant-slug");
     return NextResponse.next({ request: { headers } });
   }
@@ -100,6 +101,7 @@ export function middleware(req: NextRequest) {
 
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-tenant-slug", slug);
+  requestHeaders.set("x-pathname", pathname);
 
   // Server-side module gate: block routes for disabled modules.
   if (moduleForPath(effectivePath) && !isPathEnabled(getTenantConfig(slug), effectivePath)) {

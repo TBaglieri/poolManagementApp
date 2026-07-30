@@ -2,7 +2,7 @@ import "server-only";
 import { headers, cookies } from "next/headers";
 import {
   getTenantConfig, TenantConfigSchema, deepMerge, PLATFORM_CONFIG, PLATFORM_SLUG,
-  isPlatformSlug, DEMO_TENANT_SLUG, type TenantConfig,
+  isPlatformSlug, DEMO_TENANT_SLUG, isPlatformPath, KNOWN_TENANT_SLUGS, type TenantConfig,
 } from "@poolops/shared";
 import { getEffectiveDataMode } from "@poolops/supabase";
 import { getServerSupabase } from "@poolops/supabase/server";
@@ -10,9 +10,27 @@ import { getServerSupabase } from "@poolops/supabase/server";
 /** Deployment default tenant. For this trial it's the customer, Villas on the Ridge. */
 export const DEFAULT_TENANT_SLUG = process.env.NEXT_PUBLIC_TENANT || "villas";
 
-/** True when the middleware marked this request as a PLATFORM (non-tenant) page. */
+/** Does this path start with a real /<tenant> prefix (e.g. /villas/login)? Those stay tenant-branded. */
+function pathHasTenantPrefix(path: string): boolean {
+  const seg = path.replace(/^\/+/, "").split("/")[0]?.toLowerCase();
+  return !!seg && KNOWN_TENANT_SLUGS.includes(seg) && seg !== DEMO_TENANT_SLUG;
+}
+
+/**
+ * True when this request is a PLATFORM (non-tenant) page → render the PoolOps Pro
+ * brand, never the deployment's env-default tenant.
+ *
+ * Primary signal is the middleware `x-platform` header. As defense in depth we ALSO
+ * derive it from the request path (`x-pathname`): a platform/marketing path (/, /login,
+ * /pricing, …) with no `/<tenant>` prefix is always platform — so a bare landing page
+ * can never leak the env-default tenant even if the middleware header didn't propagate
+ * (which is exactly how "Villas on the Ridge" was showing on the root marketing page).
+ */
 export function isPlatformRequest(): boolean {
-  return headers().get("x-platform") === "1";
+  const h = headers();
+  if (h.get("x-platform") === "1") return true;
+  const path = h.get("x-pathname");
+  return !!path && isPlatformPath(path) && !pathHasTenantPrefix(path);
 }
 
 /** Active tenant slug for the current request (set by middleware; cookie fallback). */
