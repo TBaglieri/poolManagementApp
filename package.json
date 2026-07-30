@@ -22,6 +22,9 @@
     "review-invite-roles": "tsx scripts/review-invite-roles.ts",
     "verify-setup": "tsx scripts/verify-setup.ts",
     "check-org-slugs": "tsx scripts/check-org-slugs.ts",
+    "db:bundle": "node scripts/build-run-all.mjs",
+    "db:apply": "node scripts/apply-supabase-sql.mjs",
+    "db:apply:seed": "node scripts/apply-supabase-sql.mjs --with-seed",
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test"
