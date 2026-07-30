@@ -15,6 +15,7 @@ import {
   shiftTradeRequests as seedTrades, shifts as seedShifts, timeClockEntries as seedClock, timeOffRequests as seedTimeOff,
   facilities as seedFacilities, pools as seedPools, DEFAULT_CHEMICAL_RANGES, flagOutOfRange,
   canCreateGroupChat, canSendDirectMessage, canToggleDirectMessages, canManageChatMembers,
+  messageNotification, shouldNotifyMember,
   type Channel, type RoleSlug,
 } from "@poolops/shared";
 import type { ScheduleDraft } from "@poolops/scheduling";
@@ -120,6 +121,12 @@ interface DemoState {
   removeChannelMember: (channelId: ID, staffId: ID, actor: { staffId: ID | null; role: RoleSlug | null }) => boolean;
   /** Mark a channel read (clears its unread count). */
   markChannelRead: (channelId: ID) => void;
+  /** Add an inbox notification (de-duped by id). */
+  addNotification: (n: Notification) => void;
+  /** A message arrived (realtime): append it (de-duped) and, if the viewer is a
+   *  non-sender member of the chat, push an inbox notification — the "push on new
+   *  message" hook. */
+  receiveMessage: (message: Message, ctx: { viewerStaffId: ID | null; senderName: string; hrefBase?: string }) => void;
   completeChecklist: (c: Omit<ChecklistCompletion, "id" | "completedAt">) => void;
   /** Admin CRUD for checklist templates (create/edit/archive/import examples). */
   addChecklistTemplate: (t: Omit<ChecklistTemplate, "id">) => string;
@@ -516,6 +523,25 @@ export const useDemo = create<DemoState>((set, get) => ({
 
   markChannelRead: (channelId) =>
     set((s) => ({ channels: s.channels.map((c) => (c.id === channelId ? { ...c, unread: 0 } : c)) })),
+
+  addNotification: (n) =>
+    set((s) => (s.notifications.some((x) => x.id === n.id) ? {} : { notifications: [n, ...s.notifications] })),
+
+  receiveMessage: (message, ctx) => {
+    const s = get();
+    const ch = s.channels.find((c) => c.id === message.channelId);
+    const bumpUnread = ch && ctx.viewerStaffId !== message.senderId;
+    set((st) => {
+      const next: Partial<DemoState> = {};
+      if (!st.messages.some((m) => m.id === message.id)) next.messages = [...st.messages, message];
+      if (bumpUnread) next.channels = st.channels.map((c) => (c.id === message.channelId ? { ...c, unread: c.unread + 1 } : c));
+      if (ch && shouldNotifyMember(ch, ctx.viewerStaffId, message.senderId)) {
+        const n = messageNotification({ channel: ch, message, senderName: ctx.senderName, hrefBase: ctx.hrefBase });
+        if (!st.notifications.some((x) => x.id === n.id)) next.notifications = [n, ...st.notifications];
+      }
+      return next;
+    });
+  },
 
   completeChecklist: (c) =>
     set((s) => ({
