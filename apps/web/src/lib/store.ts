@@ -154,7 +154,7 @@ interface DemoState {
   hydrate: (partial: Partial<Pick<DemoState,
     "messages" | "channels" | "chemicals" | "issues" | "notifications" | "clock"
     | "timeOff" | "trades" | "shifts" | "facilities" | "pools"
-    | "reports" | "patron" | "checklists" | "checklistTemplates" | "staffRoster" | "dmsDisabled">>) => void;
+    | "reports" | "patron" | "checklists" | "checklistTemplates" | "staffRoster" | "dmsDisabled" | "onboarding">>) => void;
   /** True once the bundled demo dataset has been loaded (demo tenant only). */
   seeded: boolean;
   /**
@@ -682,19 +682,19 @@ export const useDemo = create<DemoState>((set, get) => ({
   markNotificationsRead: () =>
     set((s) => ({ notifications: s.notifications.map((n) => ({ ...n, read: true })) })),
 
-  setOnboardingStep: (staffId, step, status) =>
+  setOnboardingStep: (staffId, step, status) => {
+    const submittedAt = status === "submitted" || status === "approved" ? new Date().toISOString() : undefined;
     set((s) => {
       const idx = s.onboarding.findIndex((o) => o.staffId === staffId && o.step === step);
-      const submittedAt = status === "submitted" || status === "approved" ? new Date().toISOString() : undefined;
       if (idx >= 0) {
         const next = [...s.onboarding];
         next[idx] = { ...next[idx], status, submittedAt: submittedAt ?? next[idx].submittedAt };
         return { onboarding: next };
       }
-      return {
-        onboarding: [...s.onboarding, { id: uid("ob"), staffId, step, status, submittedAt }],
-      };
-    }),
+      return { onboarding: [...s.onboarding, { id: uid("ob"), staffId, step, status, submittedAt }] };
+    });
+    if (activeMode() === "supabase") void repos.onboarding.upsertStep({ staff_id: staffId, step, status, submitted_at: submittedAt ?? null });
+  },
 
   hydrate: (partial) => set((s) => ({ ...s, ...partial })),
 }));

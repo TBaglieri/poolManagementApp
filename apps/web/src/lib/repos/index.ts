@@ -22,9 +22,9 @@ import {
   type Facility, type StaffProfile, type Organization, type Channel, type Message,
   type Notification, type ChemicalLog, type MaintenanceIssue, type TimeClockEntry,
   type TimeOffRequest, type Shift, type ShiftTradeRequest, type RequestStatus,
-  type ShiftReport, type PatronCount, type ChecklistCompletion, type ChecklistTemplate,
+  type ShiftReport, type PatronCount, type ChecklistCompletion, type ChecklistTemplate, type OnboardingSubmission,
   shiftReports as seedReports, patronCounts as seedPatron, checklistCompletions as seedChecklists,
-  checklistTemplates as seedChecklistTemplates,
+  checklistTemplates as seedChecklistTemplates, onboardingSubmissions as seedOnboarding,
 } from "@poolops/shared";
 import { activeMode, selectOr, insertOr, updateOr, db, type RepoResult, type DataSource } from "./db";
 import { reportPersistError } from "./persist-status";
@@ -156,6 +156,13 @@ function mapChecklistTemplate(r: any): ChecklistTemplate {
   };
 }
 
+function mapOnboarding(r: any): OnboardingSubmission {
+  return {
+    id: s(r.id), staffId: s(r.staff_id), step: r.step, status: r.status ?? "not_started",
+    submittedAt: r.submitted_at ?? undefined, reviewedBy: r.reviewed_by ?? undefined,
+  };
+}
+
 /* ------------------------------- repositories ----------------------------- */
 
 export const repos = {
@@ -208,6 +215,17 @@ export const repos = {
   checklists: {
     list: () => selectOr<any, ChecklistCompletion>("checklist_completions", seedChecklists, mapChecklistCompletion, (q) => q.order("created_at", { ascending: false })),
     create: (payload: Record<string, unknown>) => insertOr<ChecklistCompletion>("checklist_completions", payload, mapChecklistCompletion),
+  },
+  onboarding: {
+    list: () => selectOr<any, OnboardingSubmission>("onboarding_submissions", seedOnboarding, mapOnboarding, (q) => q.order("created_at", { ascending: false })),
+    // One row per (staff, step) — upsert so a step's status updates in place (org id via trigger).
+    async upsertStep(payload: { staff_id: string; step: string; status: string; submitted_at: string | null }) {
+      const client = db();
+      if (activeMode() !== "supabase" || !client) return { ok: true as const };
+      const { error } = await client.from("onboarding_submissions").upsert(payload as any, { onConflict: "staff_id,step" });
+      if (error) reportPersistError("onboarding_submissions", "insert", error.message);
+      return { ok: !error };
+    },
   },
   // Admin-created checklist definitions (items stored inline as jsonb). Persisted so a
   // checklist created by an admin is visible to lifeguards (org id via trigger).
