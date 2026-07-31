@@ -1,12 +1,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ListChecks, Check, Clock, CheckCircle2, Plus, Pencil, Trash2, Sparkles, GripVertical } from "lucide-react";
-import { staffName, uid, type ChecklistTemplate, type ChecklistItem, type ChecklistCadence } from "@poolops/shared";
+import { ListChecks, Check, Clock, CheckCircle2, Plus, Pencil, Trash2, Sparkles, GripVertical, AlertTriangle, FlaskConical, ShieldCheck } from "lucide-react";
+import {
+  staffName, uid, staff as roster,
+  canViewCompliance, checklistDayState, parsePoolHours, clockMinutesInTz, formatRemaining, chemComplianceMet,
+  type ChecklistTemplate, type ChecklistItem, type ChecklistCadence, type ChecklistState,
+} from "@poolops/shared";
 import { useAccess, useMyStaffId, useStaffProfileState } from "@/lib/access";
 import { UnlinkedStaffNotice } from "@/components/shell/unlinked-staff-notice";
 import { useDemo } from "@/lib/store";
 import { useTenantSeed } from "@/lib/tenant-data";
+import { useTenantConfig } from "@/lib/tenant/provider";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { SectionCard } from "@/components/ui/section-card";
@@ -21,12 +26,15 @@ const CADENCES: ChecklistCadence[] = ["daily", "per_shift", "weekly", "custom"];
 const CADENCE_LABEL: Record<ChecklistCadence, string> = { daily: "Daily", per_shift: "Per shift", weekly: "Weekly", custom: "Custom" };
 
 export default function ChecklistsPage() {
-  const { can, staff: me } = useAccess();
+  const { can, role, staff: me } = useAccess();
   const myStaffId = useMyStaffId();
   const profileState = useStaffProfileState();
   const { facilities } = useTenantSeed();
+  const config = useTenantConfig();
+  const tz = config.timezone || "America/New_York";
   const templates = useDemo((s) => s.checklistTemplates);
   const completions = useDemo((s) => s.checklists);
+  const chemicals = useDemo((s) => s.chemicals);
   const complete = useDemo((s) => s.completeChecklist);
   const removeTemplate = useDemo((s) => s.removeChecklistTemplate);
   const importExamples = useDemo((s) => s.importExampleChecklists);
@@ -38,9 +46,33 @@ export default function ChecklistsPage() {
   const facilityName = (id: string) => facilities.find((f) => f.id === id)?.name ?? "—";
   const active = templates.filter((t) => !t.archived);
 
-  const today = completions.filter((c) => new Date(c.completedAt).toDateString() === new Date().toDateString());
+  // Daily-checklist window from the tenant's operating hours (opens at pool-open, due
+  // by close, overdue after) + the current tenant-local time for the countdown.
+  const dayWindow = parsePoolHours(config.operations.poolHours);
+  const nowMin = clockMinutesInTz(new Date().toISOString(), tz);
+  const isTodayIso = (iso: string) => new Date(iso).toDateString() === new Date().toDateString();
+
+  const today = completions.filter((c) => isTodayIso(c.completedAt));
   const doneToday = today.filter((c) => c.status === "complete").length;
   const incomplete = today.filter((c) => c.status !== "complete").length;
+
+  // Per-daily-checklist state (upcoming/open/overdue/complete/late) for the badges.
+  const stateFor = (t: ChecklistTemplate): { state: ChecklistState; remainingMin: number } => {
+    if (t.cadence !== "daily") return { state: today.some((c) => c.templateId === t.id && c.status === "complete") ? "complete" : "open", remainingMin: 0 };
+    const done = today.find((c) => c.templateId === t.id && c.status === "complete");
+    return checklistDayState({ window: dayWindow, nowMin, completed: !!done, completedAtMin: done ? clockMinutesInTz(done.completedAt, tz) : null });
+  };
+
+  // Admin compliance tracker (today): chem-check coverage vs the tenant target
+  // (Villas 3/day, configurable) + per-lifeguard checklist completion.
+  const showTracker = canViewCompliance(role);
+  const chemToday = chemicals.filter((c) => isTodayIso(c.takenAt ?? c.recordedAt)).length;
+  const chemComp = chemComplianceMet(chemToday, config.operations.expectedReadingsPerDay ?? 0);
+  const dailyCount = active.filter((t) => t.cadence === "daily").length;
+  const lifeguards = roster.filter((s) => s.primaryRole === "lifeguard" || s.primaryRole === "head_lifeguard");
+  const perStaff = lifeguards
+    .map((s) => ({ staff: s, done: today.filter((c) => c.completedBy === s.id && c.status === "complete").length }))
+    .sort((a, b) => b.done - a.done);
 
   // A real staff account with no linked profile can't run checklists as themselves
   // (a completion would mis-attribute) — fail loudly. Admins can still manage.
@@ -84,15 +116,54 @@ export default function ChecklistsPage() {
             <StatCard label="Facilities" value={facilities.length} icon="Building2" intent="info" />
           </div>
 
+          {showTracker && (
+            <SectionCard title="Compliance — today" subtitle="Chem-check coverage & per-lifeguard checklist completion" icon={<ShieldCheck className="h-4 w-4 text-brand-600" />}>
+              <div className={cn("mb-4 flex items-center gap-3 rounded-xl border p-3", chemComp.met ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50")}>
+                <span className={cn("flex h-9 w-9 items-center justify-center rounded-lg", chemComp.met ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600")}><FlaskConical className="h-4 w-4" /></span>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-slate-800">Chem checks: {chemComp.logged} of {chemComp.required} today</p>
+                  <p className="text-xs text-slate-500">{chemComp.required === 0 ? "No daily target set for this tenant." : chemComp.met ? "Target met." : `Short by ${chemComp.shortfall} — log ${chemComp.shortfall} more.`}</p>
+                </div>
+                <Badge intent={chemComp.met ? "success" : "warning"}>{chemComp.met ? "Met" : "Short"}</Badge>
+              </div>
+              {perStaff.length === 0 ? (
+                <p className="py-4 text-center text-sm text-slate-400">No lifeguards on the roster yet.</p>
+              ) : (
+                <div className="scrollbar-thin overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead><tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-400">
+                      <th className="px-3 py-2 text-left">Lifeguard</th>
+                      <th className="px-3 py-2 text-right">Checklists done today</th>
+                      <th className="px-3 py-2 text-right">Status</th>
+                    </tr></thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {perStaff.map(({ staff: s, done }) => (
+                        <tr key={s.id}>
+                          <td className="px-3 py-2.5 font-medium text-slate-700 dark:text-slate-200">{s.firstName} {s.lastName}</td>
+                          <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{done}{dailyCount > 0 ? ` / ${dailyCount}` : ""}</td>
+                          <td className="px-3 py-2.5 text-right">
+                            <Badge intent={dailyCount > 0 && done >= dailyCount ? "success" : done > 0 ? "warning" : "neutral"}>
+                              {dailyCount > 0 && done >= dailyCount ? "Complete" : done > 0 ? "Partial" : "None"}
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </SectionCard>
+          )}
+
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {active.map((t) => {
               const todays = today.filter((c) => c.templateId === t.id);
-              const done = todays.some((c) => c.status === "complete");
+              const st = stateFor(t);
               return (
-                <div key={t.id} className="card p-5">
+                <div key={t.id} className={cn("card p-5", st.state === "overdue" && "ring-1 ring-rose-200")}>
                   <div className="flex items-start justify-between">
                     <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-50 text-brand-600"><ListChecks className="h-5 w-5" /></span>
-                    <Badge intent={done ? "success" : "neutral"}>{done ? "Done today" : CADENCE_LABEL[t.cadence]}</Badge>
+                    <ChecklistStateBadge state={st.state} remainingMin={st.remainingMin} cadence={t.cadence} />
                   </div>
                   <h3 className="mt-3 font-semibold text-slate-900 dark:text-slate-100">{t.name}</h3>
                   <p className="mt-1 text-sm text-slate-400">{t.items.length} items · {t.facilityIds.length || facilities.length} facilit{(t.facilityIds.length || facilities.length) === 1 ? "y" : "ies"}</p>
@@ -158,6 +229,20 @@ export default function ChecklistsPage() {
       {editor && <ChecklistEditorModal template={editor === "new" ? null : editor} facilities={facilities} onClose={() => setEditor(null)} />}
     </div>
   );
+}
+
+/** Daily-checklist badge: countdown to close, "Overdue" after, or done/late. */
+function ChecklistStateBadge({ state, remainingMin, cadence }: { state: ChecklistState; remainingMin: number; cadence: ChecklistCadence }) {
+  if (cadence !== "daily") {
+    return <Badge intent={state === "complete" ? "success" : "neutral"}>{state === "complete" ? "Done today" : CADENCE_LABEL[cadence]}</Badge>;
+  }
+  switch (state) {
+    case "complete": return <Badge intent="success">Done today</Badge>;
+    case "complete_late": return <Badge intent="warning">Done · late</Badge>;
+    case "overdue": return <Badge intent="danger"><AlertTriangle className="h-3 w-3" /> Overdue</Badge>;
+    case "upcoming": return <Badge intent="neutral"><Clock className="h-3 w-3" /> Opens soon</Badge>;
+    default: return <Badge intent="brand"><Clock className="h-3 w-3" /> {formatRemaining(remainingMin)} left</Badge>;
+  }
 }
 
 /* ------------------------------- editor (CRUD) ---------------------------- */

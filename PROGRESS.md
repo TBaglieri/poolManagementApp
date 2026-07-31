@@ -18,7 +18,7 @@ config; every table has `organization_id`, RLS scopes by `current_org_id()`.
 | 3 | Auth UI (logo fill + eye toggle) | ✅ DONE |
 | 4 | Per-tenant config (chem fields + single facility) | ✅ DONE — Villas chem = chlorine+pH; `maxFacilities`=1, button hidden + RLS-enforced (`facility-limit.sql`). |
 | 5 | Chem logs by month | ✅ DONE — month sheet + selector; nothing lost. |
-| 6 | Daily checklists + 24h timer + compliance tracker | **NOT STARTED** (new build; depends on Fix 1). Awaiting timer/cadence decision. |
+| 6 | Daily checklists + 24h timer + compliance tracker | **MOSTLY DONE** — decision: window = pool operating hours (open→due at close, overdue after). Domain model + persistence (admin creates → lifeguard sees, via DB) + UI (per-card countdown/overdue badge + admin compliance tracker: chem-check coverage vs target + per-lifeguard completion). Backend perms already enforced (templates managers-only; completions own-only). Left: historical-day tracker view + completion `for_date` threading from client. |
 | 7 | Team chat | ✅ DONE — model + UI + RLS + realtime + push; creator membership persists; other members await Fix 1 staff↔profile. |
 
 **Next:** (1) finish Fix 1 staff↔profile resolution; (2) build Fix 6 after the
