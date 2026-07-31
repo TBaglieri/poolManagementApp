@@ -6,10 +6,11 @@ import {
 } from "lucide-react";
 import {
   DEFAULT_CHEMICAL_RANGES, staffName, staffForFacility,
-  POOL_TYPE_LABELS, type Facility,
+  POOL_TYPE_LABELS, canAddFacility, facilityLimit, type Facility,
 } from "@poolops/shared";
 import { useAccess } from "@/lib/access";
 import { useTenantSeed } from "@/lib/tenant-data";
+import { useTenantConfig } from "@/lib/tenant/provider";
 import { useDemo } from "@/lib/store";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
@@ -23,10 +24,15 @@ import { cn } from "@/lib/cn";
 
 export default function FacilitiesPage() {
   const { can } = useAccess();
+  const config = useTenantConfig();
   // Facilities come from (and are written to) the shared store, so a facility
   // created here immediately appears in Chemical Logs, Checklists, the switcher, etc.
   const { facilities: list, pools } = useTenantSeed();
   const addFacilityToStore = useDemo((s) => s.addFacility);
+  // Per-tenant facility cap (Villas = 1). At the limit, "Add facility" is hidden and
+  // the backend rejects the insert (supabase/facility-limit.sql).
+  const canAdd = can("facilities.manage") && canAddFacility(config, list.length);
+  const limit = facilityLimit(config);
   const [selected, setSelected] = useState<Facility | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [form, setForm] = useState({ name: "", address: "", capacity: "120", hours: "9:00 AM – 7:00 PM" });
@@ -37,6 +43,7 @@ export default function FacilitiesPage() {
 
   const addFacility = () => {
     if (!form.name.trim()) return;
+    if (!canAddFacility(config, list.length)) { setAddOpen(false); return; } // guard: at the cap
     addFacilityToStore({
       orgId: "", name: form.name.trim(), address: form.address || "—",
       poolType: "leisure", operatingHours: form.hours, capacity: Number(form.capacity) || 100,
@@ -51,8 +58,8 @@ export default function FacilitiesPage() {
     <div className="space-y-6">
       <PageHeader
         title="Facilities"
-        subtitle="Manage your community pools and aquatic centers."
-        actions={can("facilities.manage") && <Button icon="Plus" onClick={() => setAddOpen(true)}>Add facility</Button>}
+        subtitle={limit === 1 ? "Your community pool." : "Manage your community pools and aquatic centers."}
+        actions={canAdd && <Button icon="Plus" onClick={() => setAddOpen(true)}>Add facility</Button>}
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -65,7 +72,7 @@ export default function FacilitiesPage() {
       {list.length === 0 && (
         <EmptyState icon="Building2" title="No facilities added yet"
           description="Add your pool to start tracking chemistry, schedules, and staffing."
-          action={can("facilities.manage") ? <Button icon="Plus" onClick={() => setAddOpen(true)}>Add facility</Button> : undefined} />
+          action={canAdd ? <Button icon="Plus" onClick={() => setAddOpen(true)}>Add facility</Button> : undefined} />
       )}
 
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">

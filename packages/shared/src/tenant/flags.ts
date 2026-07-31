@@ -24,6 +24,20 @@ export function enabledModules(config: TenantConfig): AppModule[] {
   return MODULES.filter((m) => isModuleEnabled(config, m.id));
 }
 
+/** The tenant's facility cap, or undefined when unlimited (unset/0). Per-tenant config. */
+export function facilityLimit(config: TenantConfig): number | undefined {
+  const m = config.operations.maxFacilities;
+  return typeof m === "number" && m > 0 ? m : undefined;
+}
+
+/** May this tenant add another facility, given how many it already has? Villas (limit
+ *  1) can't add a second; a tenant with no limit always can. Mirrored by RLS on the
+ *  backend (supabase/facility-limit.sql) so it can't be bypassed via a raw insert. */
+export function canAddFacility(config: TenantConfig, currentCount: number): boolean {
+  const lim = facilityLimit(config);
+  return lim === undefined || currentCount < lim;
+}
+
 /**
  * Server + client route gate: is this pathname allowed for the tenant?
  * A path not owned by any module (marketing, auth, api) is always allowed.

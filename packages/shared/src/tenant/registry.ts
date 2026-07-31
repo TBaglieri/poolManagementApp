@@ -147,6 +147,8 @@ export const TENANT_INPUTS: Record<string, TenantConfigInput> = {
       // Villas records only chlorine + pH each day. The rest of the panel stays
       // available in the product — a larger facility switches it back on via config.
       chemicalFields: ["freeChlorine", "ph"],
+      // Villas runs ONE community pool. Other tenants leave this unset (unlimited).
+      maxFacilities: 1,
     },
   },
 };

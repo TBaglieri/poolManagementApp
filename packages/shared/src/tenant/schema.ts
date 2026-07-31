@@ -94,6 +94,13 @@ export const OperationsSchema = z.object({
     .array(z.enum(["freeChlorine", "combinedChlorine", "ph", "alkalinity", "calciumHardness", "cyanuricAcid", "waterTemp"]))
     .min(1)
     .optional(),
+  /**
+   * Max facilities this tenant may create. Unset/0 = unlimited (the default, so
+   * multi-facility tenants are unchanged). Villas is a single community pool → 1:
+   * the "Add facility" button hides at the limit and the backend rejects the insert
+   * (see supabase/facility-limit.sql). NEVER hardcode this — it's per-tenant config.
+   */
+  maxFacilities: z.number().int().positive().optional(),
   chemicalRanges: z.object({
     freeChlorine: Range,
     combinedChlorine: Range,

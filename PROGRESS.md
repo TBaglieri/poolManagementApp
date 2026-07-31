@@ -2,6 +2,32 @@
 
 > Running log you can check anytime. Newest entries at top of each section.
 
+---
+
+## 2026-07-31 — Consolidated fix spec (persistence-first). Numbering below follows that spec; control-level detail in `FIX6_AUDIT.md`.
+
+**Phase 0 audit:** Next.js 14 App-Router monorepo · Supabase (Postgres/RLS/Realtime) ·
+Zustand store · Vitest · Vercel. Roles: 12 slugs with numeric `level` ("Pool Manager" =
+`org_admin`). Tenancy: `resolveTenant` (path/host/cookie) + per-tenant `registry.ts`
+config; every table has `organization_id`, RLS scopes by `current_org_id()`.
+
+| Fix | Area | Status |
+|---|---|---|
+| 1 | Persistence & button wiring | **IN PROGRESS** — root causes fixed (org-id + actor triggers, hydrator reloads all slices); chem logs, maintenance, facilities(+pool), shift reports, patron, checklists, time-off, trades, shifts, chat messages now persist. Remaining: staff↔profile resolution (other chat members + reloaded names), checklist templates (→ Fix 6), onboarding, schedule drafts, disable-DMs. **Re-run `_run_all.sql`.** |
+| 2 | Tenant routing (auth) | ✅ DONE — `resolveTenantAndRedirect` on login/reset/invite; Villas reset → Villas, never root. |
+| 3 | Auth UI (logo fill + eye toggle) | ✅ DONE |
+| 4 | Per-tenant config (chem fields + single facility) | ✅ DONE — Villas chem = chlorine+pH; `maxFacilities`=1, button hidden + RLS-enforced (`facility-limit.sql`). |
+| 5 | Chem logs by month | ✅ DONE — month sheet + selector; nothing lost. |
+| 6 | Daily checklists + 24h timer + compliance tracker | **NOT STARTED** (new build; depends on Fix 1). Awaiting timer/cadence decision. |
+| 7 | Team chat | ✅ DONE — model + UI + RLS + realtime + push; creator membership persists; other members await Fix 1 staff↔profile. |
+
+**Next:** (1) finish Fix 1 staff↔profile resolution; (2) build Fix 6 after the
+timer/cadence decision (which also lands checklist-template persistence).
+**Open question — Fix 6:** when does a daily checklist's 24h clock start / a fresh
+instance appear — fixed daily reset in tenant tz, or from the admin's post time?
+
+---
+
 ## Current status: **BACKEND IS LIVE.** Supabase project bqhhbekmqsmfkxyzdvol resumed; schema + RLS + seed applied and verified (tables 200, seed present, RLS enforcing). Web + native apps built and verified. Next: sign in against live data, then deploy (Vercel) + EAS build.
 
 Verified this session:
