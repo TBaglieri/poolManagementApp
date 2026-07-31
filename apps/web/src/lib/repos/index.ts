@@ -22,9 +22,9 @@ import {
   type Facility, type StaffProfile, type Organization, type Channel, type Message,
   type Notification, type ChemicalLog, type MaintenanceIssue, type TimeClockEntry,
   type TimeOffRequest, type Shift, type ShiftTradeRequest, type RequestStatus,
-  type ShiftReport, type PatronCount, type ChecklistCompletion, type ChecklistTemplate, type OnboardingSubmission,
+  type ShiftReport, type PatronCount, type ChecklistCompletion, type ChecklistTemplate, type OnboardingSubmission, type Pool,
   shiftReports as seedReports, patronCounts as seedPatron, checklistCompletions as seedChecklists,
-  checklistTemplates as seedChecklistTemplates, onboardingSubmissions as seedOnboarding,
+  checklistTemplates as seedChecklistTemplates, onboardingSubmissions as seedOnboarding, pools as seedPools,
 } from "@poolops/shared";
 import { activeMode, selectOr, insertOr, updateOr, db, type RepoResult, type DataSource } from "./db";
 import { reportPersistError } from "./persist-status";
@@ -156,6 +156,13 @@ function mapChecklistTemplate(r: any): ChecklistTemplate {
   };
 }
 
+function mapPool(r: any): Pool {
+  return {
+    id: s(r.id), facilityId: s(r.facility_id), name: s(r.name), poolType: (r.pool_type ?? "leisure"),
+    volumeGallons: n(r.volume_gallons), maxDepthFt: n(r.max_depth_ft),
+  };
+}
+
 function mapOnboarding(r: any): OnboardingSubmission {
   return {
     id: s(r.id), staffId: s(r.staff_id), step: r.step, status: r.status ?? "not_started",
@@ -197,6 +204,7 @@ export const repos = {
 
   facilities: {
     list: () => selectOr<any, Facility>("facilities", seedFacilities, mapFacility),
+    listPools: () => selectOr<any, Pool>("pools", seedPools, mapPool),
     create: (payload: Record<string, unknown>) => insertOr<Facility>("facilities", payload, mapFacility),
     createPool: (payload: Record<string, unknown>) => insertOr("pools", payload),
   },
@@ -232,7 +240,7 @@ export const repos = {
   checklistTemplates: {
     list: () => selectOr<any, ChecklistTemplate>("checklist_templates", seedChecklistTemplates, mapChecklistTemplate, (q) => q.order("created_at", { ascending: false })),
     create: (t: ChecklistTemplate) => insertOr<ChecklistTemplate>("checklist_templates", {
-      name: t.name, kind: t.kind, cadence: t.cadence, facility_ids: t.facilityIds, items: t.items, archived: t.archived ?? false,
+      id: t.id, name: t.name, kind: t.kind, cadence: t.cadence, facility_ids: t.facilityIds, items: t.items, archived: t.archived ?? false,
     }, mapChecklistTemplate),
     update: (id: string, patch: Record<string, unknown>) => updateOr<ChecklistTemplate>("checklist_templates", id, patch, mapChecklistTemplate),
     async remove(id: string) {
@@ -290,17 +298,15 @@ export const repos = {
     // AFTER INSERT trigger (chat.sql) adds the CREATOR to channel_members. The OTHER
     // members are inserted here by their profile ids (the store resolves staff→profile
     // via the roster's userId), so a group's full roster persists and reloads.
-    async createGroupChat(input: { name: string; description?: string; memberProfileIds: string[] }) {
-      const created = await insertOr<{ id: string }>("channels", {
-        name: input.name, kind: "group", chat_type: "group", description: input.description ?? null,
-      }, (r) => ({ id: String(r.id) }));
-      const channelId = created.data?.id;
-      if (channelId) for (const pid of input.memberProfileIds) await insertOr("channel_members", { channel_id: channelId, profile_id: pid });
+    async createGroupChat(input: { id: string; name: string; description?: string; memberProfileIds: string[] }) {
+      await insertOr("channels", {
+        id: input.id, name: input.name, kind: "group", chat_type: "group", description: input.description ?? null,
+      });
+      for (const pid of input.memberProfileIds) await insertOr("channel_members", { channel_id: input.id, profile_id: pid });
     },
-    async createDirectChat(input: { toProfileId: string }) {
-      const created = await insertOr<{ id: string }>("channels", { name: "Direct message", kind: "dm", chat_type: "dm" }, (r) => ({ id: String(r.id) }));
-      const channelId = created.data?.id;
-      if (channelId && input.toProfileId) await insertOr("channel_members", { channel_id: channelId, profile_id: input.toProfileId });
+    async createDirectChat(input: { id: string; toProfileId: string }) {
+      await insertOr("channels", { id: input.id, name: "Direct message", kind: "dm", chat_type: "dm" });
+      if (input.toProfileId) await insertOr("channel_members", { channel_id: input.id, profile_id: input.toProfileId });
     },
     async addChannelMember(channelId: string, profileId: string) {
       await insertOr("channel_members", { channel_id: channelId, profile_id: profileId });

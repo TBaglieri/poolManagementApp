@@ -21,7 +21,7 @@ export function SupabaseHydrator() {
       // Re-fetch EVERY slice we persist, so a create/edit/assign that was written to
       // Supabase is still there after a refresh (previously time-off, trades, shifts,
       // and facilities were written but never re-loaded, so they appeared to vanish).
-      const [messages, channels, chemicals, issues, notifications, clock, facilities, shifts, timeOff, trades, reports, patron, checklists, checklistTemplates, staff, onboarding] = await Promise.all([
+      const [messages, channels, chemicals, issues, notifications, clock, facilities, shifts, timeOff, trades, reports, patron, checklists, checklistTemplates, staff, onboarding, pools] = await Promise.all([
         repos.chat.listMessages(),
         repos.chat.listChannels(),
         repos.chemicals.list(),
@@ -38,6 +38,7 @@ export function SupabaseHydrator() {
         repos.checklistTemplates.list(),
         repos.staff.list(),
         repos.onboarding.list(),
+        repos.facilities.listPools(),
       ]);
       if (!active) return;
 
@@ -64,6 +65,7 @@ export function SupabaseHydrator() {
       if (notifications.source === "supabase" && notifications.data.length) next.notifications = notifications.data;
       if (clock.source === "supabase" && clock.data.length) next.clock = clock.data;
       if (facilities.source === "supabase" && facilities.data.length) next.facilities = facilities.data;
+      if (pools.source === "supabase" && pools.data.length) next.pools = pools.data;
       if (shifts.source === "supabase" && shifts.data.length) next.shifts = shifts.data;
       if (timeOff.source === "supabase" && timeOff.data.length) next.timeOff = timeOff.data;
       if (trades.source === "supabase" && trades.data.length) next.trades = trades.data;

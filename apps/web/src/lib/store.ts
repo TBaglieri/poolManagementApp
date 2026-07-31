@@ -45,6 +45,19 @@ function profileIdFor(roster: StaffProfile[], staffId: ID): string | null {
   return roster.find((s) => s.id === staffId)?.userId || null;
 }
 
+/** A real RFC-4122 UUID for entities whose id is written to a uuid DB column and
+ *  referenced by other rows (facilities, pools, channels, checklist templates). Using
+ *  a mock "fac_xxx" id would fail the uuid column and break chem logs / messages that
+ *  reference it. The client generates the id and inserts it, so store id === DB id. */
+function newId(): string {
+  const g = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
+  if (g?.randomUUID) return g.randomUUID();
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
 interface DemoState {
   /**
    * The tenant's facilities + pools live in the store (not just static seed data)
@@ -206,33 +219,29 @@ export const useDemo = create<DemoState>((set, get) => ({
   seedDemo: () => set((s) => (s.seeded ? {} : { ...demoSeed(), seeded: true })),
 
   addFacility: (input) => {
-    const id = uid("fac");
+    const id = newId();
     const pool: Pool = {
-      id: uid("pool"), facilityId: id, name: "Main Pool",
+      id: newId(), facilityId: id, name: "Main Pool",
       poolType: input.poolType ?? "leisure", volumeGallons: 100000, maxDepthFt: 8,
     };
     set((s) => ({
       facilities: [...s.facilities, { ...input, id }],
       pools: [...s.pools, pool],
     }));
-    // Persist (organization_id is stamped by the DB trigger). manager_id is omitted
-    // to avoid a staff↔profile FK mismatch; the pool attaches to the real facility id.
+    // Persist with the SAME client-generated UUIDs, so chem logs / pools reference a
+    // real id immediately (org id via trigger; image_hint is demo-only, not a column;
+    // manager_id omitted to dodge a staff↔profile FK).
     if (activeMode() === "supabase") {
-      void (async () => {
-        const res = await repos.facilities.create({
-          // NOTE: image_hint is a demo-only display hint, NOT a DB column — including
-          // it here made every facility insert fail (silently). Persist real columns only.
-          name: input.name, address: input.address, pool_type: input.poolType,
-          operating_hours: input.operatingHours, capacity: input.capacity,
-          emergency_phone: input.emergencyPhone, status: input.status,
-          chemical_ranges: input.chemicalRanges, inspection_required: input.inspectionRequired,
-        });
-        const realId = (res.data as { id?: string } | null)?.id;
-        if (realId) await repos.facilities.createPool({
-          facility_id: realId, name: pool.name, pool_type: pool.poolType,
-          volume_gallons: pool.volumeGallons, max_depth_ft: pool.maxDepthFt,
-        });
-      })();
+      void repos.facilities.create({
+        id, name: input.name, address: input.address, pool_type: input.poolType,
+        operating_hours: input.operatingHours, capacity: input.capacity,
+        emergency_phone: input.emergencyPhone, status: input.status,
+        chemical_ranges: input.chemicalRanges, inspection_required: input.inspectionRequired,
+      });
+      void repos.facilities.createPool({
+        id: pool.id, facility_id: id, name: pool.name, pool_type: pool.poolType,
+        volume_gallons: pool.volumeGallons, max_depth_ft: pool.maxDepthFt,
+      });
     }
     return id;
   },
@@ -451,7 +460,7 @@ export const useDemo = create<DemoState>((set, get) => ({
       // recorded_by is omitted → the insert-actor trigger sets it to auth.uid()
       // (it references profiles(id); the app's staff id would violate the FK).
       void repos.chemicals.create({
-        facility_id: log.facilityId, pool_id: log.poolId,
+        facility_id: log.facilityId, pool_id: log.poolId || null, // null (not "") when no pool → valid uuid column
         free_chlorine: log.freeChlorine, combined_chlorine: log.combinedChlorine, ph: log.ph,
         alkalinity: log.alkalinity, calcium_hardness: log.calciumHardness, cyanuric_acid: log.cyanuricAcid,
         water_temp: log.waterTemp, notes: log.notes ?? null, out_of_range: flags, taken_at: takenAt,
@@ -503,7 +512,7 @@ export const useDemo = create<DemoState>((set, get) => ({
     if (!trimmed) return { ok: false as const, error: "Give the chat a name." };
     // The creator is always a member; de-dupe the roster.
     const members = Array.from(new Set([createdBy, ...memberIds])).filter(Boolean);
-    const id = uid("ch");
+    const id = newId();
     const channel: Channel = {
       id, name: trimmed, kind: "group", chatType: "group",
       description: description?.trim() || `${members.length} members`,
@@ -516,7 +525,7 @@ export const useDemo = create<DemoState>((set, get) => ({
       const roster = get().staffRoster;
       const memberProfileIds = members.filter((m) => m !== createdBy)
         .map((m) => profileIdFor(roster, m)).filter((x): x is string => !!x);
-      void repos.chat.createGroupChat?.({ name: trimmed, description, memberProfileIds });
+      void repos.chat.createGroupChat?.({ id, name: trimmed, description, memberProfileIds });
     }
     return { ok: true as const, id };
   },
@@ -534,7 +543,7 @@ export const useDemo = create<DemoState>((set, get) => ({
       (c.memberIds ?? []).slice().sort().join("|") === pair.join("|"));
     if (existing) return { ok: true as const, id: existing.id };
     const other = getStaff(toStaffId);
-    const id = uid("dm");
+    const id = newId();
     const channel: Channel = {
       id, name: other ? `${other.firstName} ${other.lastName}` : "Direct message",
       kind: "dm", chatType: "dm", description: "Direct message",
@@ -543,7 +552,7 @@ export const useDemo = create<DemoState>((set, get) => ({
     set((s) => ({ channels: [channel, ...s.channels] }));
     if (activeMode() === "supabase") {
       const toProfileId = profileIdFor(get().staffRoster, toStaffId);
-      if (toProfileId) void repos.chat.createDirectChat?.({ toProfileId });
+      if (toProfileId) void repos.chat.createDirectChat?.({ id, toProfileId });
     }
     return { ok: true as const, id };
   },
@@ -612,14 +621,11 @@ export const useDemo = create<DemoState>((set, get) => ({
   },
 
   addChecklistTemplate: (t) => {
-    const id = uid("cl");
+    const id = newId();
     set((s) => ({ checklistTemplates: [{ ...t, id }, ...s.checklistTemplates] }));
-    // Persist so lifeguards (and other devices) see the admin-created checklist.
-    // Reconcile the optimistic id with the DB's real uuid once the insert returns.
-    if (activeMode() === "supabase") void repos.checklistTemplates.create({ ...t, id }).then((res) => {
-      const realId = (res.data as { id?: string } | null)?.id;
-      if (realId && realId !== id) set((s) => ({ checklistTemplates: s.checklistTemplates.map((x) => (x.id === id ? { ...x, id: realId } : x)) }));
-    });
+    // Persist with the client UUID so completions reference a real id and lifeguards
+    // (and other devices) see the admin-created checklist.
+    if (activeMode() === "supabase") void repos.checklistTemplates.create({ ...t, id });
     return id;
   },
   updateChecklistTemplate: (id, patch) => {
