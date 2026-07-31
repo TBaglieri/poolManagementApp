@@ -209,11 +209,12 @@ export const useDemo = create<DemoState>((set, get) => ({
     if (activeMode() === "supabase") {
       void (async () => {
         const res = await repos.facilities.create({
+          // NOTE: image_hint is a demo-only display hint, NOT a DB column — including
+          // it here made every facility insert fail (silently). Persist real columns only.
           name: input.name, address: input.address, pool_type: input.poolType,
           operating_hours: input.operatingHours, capacity: input.capacity,
           emergency_phone: input.emergencyPhone, status: input.status,
           chemical_ranges: input.chemicalRanges, inspection_required: input.inspectionRequired,
-          image_hint: input.imageHint,
         });
         const realId = (res.data as { id?: string } | null)?.id;
         if (realId) await repos.facilities.createPool({

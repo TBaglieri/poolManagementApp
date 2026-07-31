@@ -8,6 +8,7 @@
  * table) they fall back to bundled demo data and report the source + error.
  */
 import { getBrowserSupabase, getEffectiveDataMode } from "@poolops/supabase";
+import { reportPersistError } from "./persist-status";
 
 export type DataSource = "supabase" | "mock";
 
@@ -69,11 +70,15 @@ export async function insertOr<TOut>(
   try {
     const { data, error } = await client.from(table).insert(payload as any).select().single();
     if (error) {
-      return { ok: false, source: "supabase", error: isMissingTable(error) ? `Table "${table}" not found — run supabase/schema.sql` : error.message, data: null };
+      const msg = isMissingTable(error) ? `Table "${table}" not found — run supabase/schema.sql` : error.message;
+      reportPersistError(table, "insert", msg);
+      return { ok: false, source: "supabase", error: msg, data: null };
     }
     return { ok: true, source: "supabase", error: null, data: map && data ? map(data) : (data as TOut) };
   } catch (e: any) {
-    return { ok: false, source: "supabase", error: e?.message ?? "Insert failed", data: null };
+    const msg = e?.message ?? "Insert failed";
+    reportPersistError(table, "insert", msg);
+    return { ok: false, source: "supabase", error: msg, data: null };
   }
 }
 
@@ -94,10 +99,14 @@ export async function updateOr<TOut>(
   try {
     const { data, error } = await client.from(table).update(patch as any).eq("id", id).select().single();
     if (error) {
-      return { ok: false, source: "supabase", error: isMissingTable(error) ? `Table "${table}" not found — run supabase/schema.sql` : error.message, data: null };
+      const msg = isMissingTable(error) ? `Table "${table}" not found — run supabase/schema.sql` : error.message;
+      reportPersistError(table, "update", msg);
+      return { ok: false, source: "supabase", error: msg, data: null };
     }
     return { ok: true, source: "supabase", error: null, data: map && data ? map(data) : (data as TOut) };
   } catch (e: any) {
-    return { ok: false, source: "supabase", error: e?.message ?? "Update failed", data: null };
+    const msg = e?.message ?? "Update failed";
+    reportPersistError(table, "update", msg);
+    return { ok: false, source: "supabase", error: msg, data: null };
   }
 }

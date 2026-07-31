@@ -14,6 +14,7 @@ import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { SupabaseHydrator } from "./supabase-hydrator";
 import { ChatRealtime } from "./chat-realtime";
+import { PersistErrorToast } from "./persist-error-toast";
 import { SupabaseSessionSync } from "./supabase-session-sync";
 import { DemoSeeder } from "./demo-seeder";
 import { RouteProgress } from "./route-progress";
@@ -67,6 +68,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <SupabaseSessionSync />
       <SupabaseHydrator />
       <ChatRealtime />
+      <PersistErrorToast />
       <DemoSeeder />
       {/* Desktop sidebar */}
       <aside className="hidden w-64 shrink-0 lg:block">
