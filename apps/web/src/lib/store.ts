@@ -144,7 +144,7 @@ interface DemoState {
   hydrate: (partial: Partial<Pick<DemoState,
     "messages" | "channels" | "chemicals" | "issues" | "notifications" | "clock"
     | "timeOff" | "trades" | "shifts" | "facilities" | "pools"
-    | "reports" | "patron" | "checklists">>) => void;
+    | "reports" | "patron" | "checklists" | "checklistTemplates">>) => void;
   /** True once the bundled demo dataset has been loaded (demo tenant only). */
   seeded: boolean;
   /**
@@ -582,12 +582,31 @@ export const useDemo = create<DemoState>((set, get) => ({
   addChecklistTemplate: (t) => {
     const id = uid("cl");
     set((s) => ({ checklistTemplates: [{ ...t, id }, ...s.checklistTemplates] }));
+    // Persist so lifeguards (and other devices) see the admin-created checklist.
+    // Reconcile the optimistic id with the DB's real uuid once the insert returns.
+    if (activeMode() === "supabase") void repos.checklistTemplates.create({ ...t, id }).then((res) => {
+      const realId = (res.data as { id?: string } | null)?.id;
+      if (realId && realId !== id) set((s) => ({ checklistTemplates: s.checklistTemplates.map((x) => (x.id === id ? { ...x, id: realId } : x)) }));
+    });
     return id;
   },
-  updateChecklistTemplate: (id, patch) =>
-    set((s) => ({ checklistTemplates: s.checklistTemplates.map((t) => (t.id === id ? { ...t, ...patch } : t)) })),
-  removeChecklistTemplate: (id) =>
-    set((s) => ({ checklistTemplates: s.checklistTemplates.filter((t) => t.id !== id) })),
+  updateChecklistTemplate: (id, patch) => {
+    set((s) => ({ checklistTemplates: s.checklistTemplates.map((t) => (t.id === id ? { ...t, ...patch } : t)) }));
+    if (activeMode() === "supabase") {
+      const dbPatch: Record<string, unknown> = {};
+      if (patch.name !== undefined) dbPatch.name = patch.name;
+      if (patch.kind !== undefined) dbPatch.kind = patch.kind;
+      if (patch.cadence !== undefined) dbPatch.cadence = patch.cadence;
+      if (patch.facilityIds !== undefined) dbPatch.facility_ids = patch.facilityIds;
+      if (patch.items !== undefined) dbPatch.items = patch.items;
+      if (patch.archived !== undefined) dbPatch.archived = patch.archived;
+      void repos.checklistTemplates.update(id, dbPatch);
+    }
+  },
+  removeChecklistTemplate: (id) => {
+    set((s) => ({ checklistTemplates: s.checklistTemplates.filter((t) => t.id !== id) }));
+    if (activeMode() === "supabase") void repos.checklistTemplates.remove(id);
+  },
   importExampleChecklists: () =>
     set((s) => {
       // Only add examples that aren't already present (idempotent), re-id'd for this

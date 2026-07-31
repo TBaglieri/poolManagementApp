@@ -40,6 +40,7 @@ export const MANIFEST = [
   { file: "realtime.sql",                  phase: "setup",  desc: "Realtime publication (messages, channels, …)" },
   { file: "staff-auth-link.sql",           phase: "setup",  desc: "Link staff_profiles to auth users" },
   { file: "chem-taken-at.sql",             phase: "setup",  desc: "chemical_logs.taken_at column" },
+  { file: "checklist-fix6.sql",            phase: "setup",  desc: "Checklist template items (jsonb) + completion for_date (daily checklists)" },
 
   // ---- seed: OPTIONAL sample/tenant data (only with --with-seed) ----
   { file: "seed.sql",                      phase: "seed",   desc: "Demo org + sample dataset" },

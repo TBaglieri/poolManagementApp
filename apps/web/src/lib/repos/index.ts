@@ -22,8 +22,9 @@ import {
   type Facility, type StaffProfile, type Organization, type Channel, type Message,
   type Notification, type ChemicalLog, type MaintenanceIssue, type TimeClockEntry,
   type TimeOffRequest, type Shift, type ShiftTradeRequest, type RequestStatus,
-  type ShiftReport, type PatronCount, type ChecklistCompletion,
+  type ShiftReport, type PatronCount, type ChecklistCompletion, type ChecklistTemplate,
   shiftReports as seedReports, patronCounts as seedPatron, checklistCompletions as seedChecklists,
+  checklistTemplates as seedChecklistTemplates,
 } from "@poolops/shared";
 import { activeMode, selectOr, insertOr, updateOr, db, type RepoResult, type DataSource } from "./db";
 
@@ -147,6 +148,13 @@ function mapChecklistCompletion(r: any): ChecklistCompletion {
   };
 }
 
+function mapChecklistTemplate(r: any): ChecklistTemplate {
+  return {
+    id: s(r.id), name: s(r.name), kind: (r.kind ?? "opening"), cadence: (r.cadence ?? "daily"),
+    facilityIds: arr(r.facility_ids), items: Array.isArray(r.items) ? r.items : [], archived: b(r.archived),
+  };
+}
+
 /* ------------------------------- repositories ----------------------------- */
 
 export const repos = {
@@ -184,6 +192,19 @@ export const repos = {
   checklists: {
     list: () => selectOr<any, ChecklistCompletion>("checklist_completions", seedChecklists, mapChecklistCompletion, (q) => q.order("created_at", { ascending: false })),
     create: (payload: Record<string, unknown>) => insertOr<ChecklistCompletion>("checklist_completions", payload, mapChecklistCompletion),
+  },
+  // Admin-created checklist definitions (items stored inline as jsonb). Persisted so a
+  // checklist created by an admin is visible to lifeguards (org id via trigger).
+  checklistTemplates: {
+    list: () => selectOr<any, ChecklistTemplate>("checklist_templates", seedChecklistTemplates, mapChecklistTemplate, (q) => q.order("created_at", { ascending: false })),
+    create: (t: ChecklistTemplate) => insertOr<ChecklistTemplate>("checklist_templates", {
+      name: t.name, kind: t.kind, cadence: t.cadence, facility_ids: t.facilityIds, items: t.items, archived: t.archived ?? false,
+    }, mapChecklistTemplate),
+    update: (id: string, patch: Record<string, unknown>) => updateOr<ChecklistTemplate>("checklist_templates", id, patch, mapChecklistTemplate),
+    async remove(id: string) {
+      const client = db();
+      if (activeMode() === "supabase" && client) await client.from("checklist_templates").delete().eq("id", id);
+    },
   },
 
   staff: {

@@ -11,6 +11,7 @@ const repoSpies = vi.hoisted(() => ({
   reports: { create: vi.fn((_p?: any) => {}), update: vi.fn((_id?: any, _p?: any) => {}) },
   patron: { create: vi.fn((_p?: any) => {}) },
   checklists: { create: vi.fn((_p?: any) => {}) },
+  checklistTemplates: { create: vi.fn(async (_p?: any) => ({ data: { id: "tpl-db-1" } })), update: vi.fn((_id?: any, _p?: any) => {}), remove: vi.fn((_id?: any) => {}) },
   chemicals: { create: vi.fn((_p?: any) => {}) },
   chat: { postMessage: vi.fn((_p?: any) => {}) },
 }));
@@ -62,5 +63,13 @@ describe("creates persist to the database (not just local state)", () => {
   it("Complete checklist → inserts a checklist_completions row", () => {
     useDemo.getState().completeChecklist({ templateId: "t", facilityId: "f", completedBy: "s", status: "complete", checkedItemIds: ["a"] });
     expect(repoSpies.checklists.create).toHaveBeenCalledWith(expect.objectContaining({ template_id: "t", facility_id: "f" }));
+  });
+
+  it("Admin creates a checklist → persists the template (so lifeguards see it)", () => {
+    useDemo.getState().addChecklistTemplate({
+      name: "Opening", kind: "opening", cadence: "daily", facilityIds: [], items: [{ id: "i1", label: "Unlock gate" }],
+    });
+    expect(repoSpies.checklistTemplates.create).toHaveBeenCalledTimes(1);
+    expect(repoSpies.checklistTemplates.create.mock.calls[0][0]).toMatchObject({ name: "Opening", kind: "opening" });
   });
 });
