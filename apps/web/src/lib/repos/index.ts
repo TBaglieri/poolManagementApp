@@ -27,6 +27,7 @@ import {
   checklistTemplates as seedChecklistTemplates,
 } from "@poolops/shared";
 import { activeMode, selectOr, insertOr, updateOr, db, type RepoResult, type DataSource } from "./db";
+import { reportPersistError } from "./persist-status";
 
 export { activeMode } from "./db";
 export { checkHealth, useHealth, healthLabel, type Health, type HealthStatus } from "./health";
@@ -169,6 +170,21 @@ export const repos = {
         plan: row.plan ?? "small", createdAt: s(row.created_at),
       }), (q) => q.limit(1));
       return { data: r.data[0] ?? seedOrg, source: r.source, error: r.error };
+    },
+    // Org-wide "disable direct messages" flag. Written via an RPC that enforces
+    // is_org_admin server-side (set_org_dms); read back on load to restore the toggle.
+    async setDmsDisabled(disabled: boolean) {
+      const client = db();
+      if (activeMode() !== "supabase" || !client) return { ok: true as const };
+      const { error } = await (client.rpc as any)("set_org_dms", { disabled });
+      if (error) reportPersistError("organizations", "update", error.message);
+      return { ok: !error };
+    },
+    async getDmsDisabled(): Promise<boolean | null> {
+      const client = db();
+      if (activeMode() !== "supabase" || !client) return null;
+      const { data } = await client.from("organizations").select("dms_disabled").maybeSingle();
+      return (data as { dms_disabled?: boolean } | null)?.dms_disabled ?? null;
     },
   },
 

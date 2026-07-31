@@ -41,6 +41,9 @@ export function SupabaseHydrator() {
       if (!active) return;
 
       const next: Parameters<typeof hydrate>[0] = {};
+      // Restore the org-wide DM toggle so it survives refresh.
+      const dms = await repos.organizations.getDmsDisabled();
+      if (active && typeof dms === "boolean") next.dmsDisabled = dms;
       if (staff.source === "supabase" && staff.data.length) next.staffRoster = staff.data;
       if (messages.source === "supabase" && messages.data.length) next.messages = messages.data;
       if (channels.source === "supabase" && channels.data.length) {

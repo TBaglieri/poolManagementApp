@@ -36,6 +36,7 @@ export const MANIFEST = [
   { file: "rls-gaps.sql",                  phase: "setup",  desc: "Additional RLS coverage" },
   { file: "shift-reports-rls.sql",         phase: "setup",  desc: "RLS for shift reports" },
   { file: "chat.sql",                      phase: "setup",  desc: "Team chat: group/DM columns, membership + RLS, realtime" },
+  { file: "chat-dms-rpc.sql",              phase: "setup",  desc: "set_org_dms RPC — persist the disable-DMs toggle (admin-only)" },
   { file: "storage.sql",                   phase: "setup",  desc: "Private buckets + storage policies" },
   { file: "realtime.sql",                  phase: "setup",  desc: "Realtime publication (messages, channels, …)" },
   { file: "staff-auth-link.sql",           phase: "setup",  desc: "Link staff_profiles to auth users" },

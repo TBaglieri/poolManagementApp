@@ -154,7 +154,7 @@ interface DemoState {
   hydrate: (partial: Partial<Pick<DemoState,
     "messages" | "channels" | "chemicals" | "issues" | "notifications" | "clock"
     | "timeOff" | "trades" | "shifts" | "facilities" | "pools"
-    | "reports" | "patron" | "checklists" | "checklistTemplates" | "staffRoster">>) => void;
+    | "reports" | "patron" | "checklists" | "checklistTemplates" | "staffRoster" | "dmsDisabled">>) => void;
   /** True once the bundled demo dataset has been loaded (demo tenant only). */
   seeded: boolean;
   /**
@@ -492,6 +492,7 @@ export const useDemo = create<DemoState>((set, get) => ({
   setDmsDisabled: (value, actorRole) => {
     if (!canToggleDirectMessages(actorRole)) return false; // Super Admin / Pool Manager only
     set({ dmsDisabled: value });
+    if (activeMode() === "supabase") void repos.organizations.setDmsDisabled(value); // RPC enforces admin
     return true;
   },
 
