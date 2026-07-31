@@ -43,6 +43,7 @@ export const MANIFEST = [
   { file: "chem-taken-at.sql",             phase: "setup",  desc: "chemical_logs.taken_at column" },
   { file: "checklist-fix6.sql",            phase: "setup",  desc: "Checklist template items (jsonb) + completion for_date (daily checklists)" },
   { file: "onboarding-fix.sql",            phase: "setup",  desc: "Unique (staff_id, step) for onboarding upserts" },
+  { file: "schedule-drafts-fix.sql",       phase: "setup",  desc: "schedule_drafts.draft_json blob (persist WIP drafts)" },
 
   // ---- seed: OPTIONAL sample/tenant data (only with --with-seed) ----
   { file: "seed.sql",                      phase: "seed",   desc: "Demo org + sample dataset" },

@@ -26,6 +26,7 @@ import {
   shiftReports as seedReports, patronCounts as seedPatron, checklistCompletions as seedChecklists,
   checklistTemplates as seedChecklistTemplates, onboardingSubmissions as seedOnboarding, pools as seedPools,
 } from "@poolops/shared";
+import type { ScheduleDraft } from "@poolops/scheduling";
 import { activeMode, selectOr, insertOr, updateOr, db, type RepoResult, type DataSource } from "./db";
 import { reportPersistError } from "./persist-status";
 
@@ -360,14 +361,33 @@ export const repos = {
   scheduling: {
     listShifts: () => selectOr<any, Shift>("shifts", seedShifts, mapShift, (q) => q.order("shift_date", { ascending: true })),
     createShift: (payload: {
-      facilityId: string; position: string; date: string; start: string; end: string;
-      assignedStaffId?: string | null; status?: string; notes?: string; organizationId?: string;
+      id?: string; facilityId: string; position: string; date: string; start: string; end: string;
+      assignedStaffId?: string | null; status?: string; notes?: string;
     }) => insertOr<Shift>("shifts", {
+      ...(payload.id ? { id: payload.id } : {}),
       facility_id: payload.facilityId, position: payload.position, shift_date: payload.date,
       start_time: payload.start, end_time: payload.end, assigned_staff_id: payload.assignedStaffId ?? null,
       status: payload.status ?? (payload.assignedStaffId ? "assigned" : "open"), notes: payload.notes ?? null,
-      organization_id: payload.organizationId ?? null,
     }, mapShift),
+    // Schedule drafts stored as a JSONB blob (draft_json) so WIP survives refresh.
+    listDrafts: async () => {
+      const r = await selectOr<any, ScheduleDraft>("schedule_drafts", [], (row) => row.draft_json as ScheduleDraft);
+      return { ...r, data: r.data.filter(Boolean) };
+    },
+    async upsertDraft(draft: ScheduleDraft) {
+      const client = db();
+      if (activeMode() !== "supabase" || !client) return { ok: true as const };
+      const { error } = await client.from("schedule_drafts").upsert({
+        id: draft.id, facility_id: draft.facilityId === "all" ? null : draft.facilityId,
+        week_start: draft.weekStart, status: draft.status, coverage_score: draft.coverageScore, draft_json: draft,
+      } as any, { onConflict: "id" });
+      if (error) reportPersistError("schedule_drafts", "insert", error.message);
+      return { ok: !error };
+    },
+    async removeDraft(id: string) {
+      const client = db();
+      if (activeMode() === "supabase" && client) await client.from("schedule_drafts").delete().eq("id", id);
+    },
     /** Assign/unassign, change status, or edit notes on an existing shift. */
     updateShift: (id: string, patch: Partial<{ assignedStaffId: string | null; status: string; notes: string; position: string; start: string; end: string; date: string }>) =>
       updateOr<Shift>("shifts", id, {

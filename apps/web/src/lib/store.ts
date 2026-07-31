@@ -167,7 +167,7 @@ interface DemoState {
   hydrate: (partial: Partial<Pick<DemoState,
     "messages" | "channels" | "chemicals" | "issues" | "notifications" | "clock"
     | "timeOff" | "trades" | "shifts" | "facilities" | "pools"
-    | "reports" | "patron" | "checklists" | "checklistTemplates" | "staffRoster" | "dmsDisabled" | "onboarding">>) => void;
+    | "reports" | "patron" | "checklists" | "checklistTemplates" | "staffRoster" | "dmsDisabled" | "onboarding" | "drafts">>) => void;
   /** True once the bundled demo dataset has been loaded (demo tenant only). */
   seeded: boolean;
   /**
@@ -246,11 +246,18 @@ export const useDemo = create<DemoState>((set, get) => ({
     return id;
   },
 
-  addDraft: (draft) => set((s) => ({ drafts: [draft, ...s.drafts.filter((d) => d.id !== draft.id)] })),
+  addDraft: (draft) => {
+    set((s) => ({ drafts: [draft, ...s.drafts.filter((d) => d.id !== draft.id)] }));
+    // Persist the whole draft as a JSONB blob so WIP survives refresh (draft.id is a UUID).
+    if (activeMode() === "supabase") void repos.scheduling.upsertDraft(draft);
+  },
 
-  removeDraft: (id) => set((s) => ({ drafts: s.drafts.filter((d) => d.id !== id) })),
+  removeDraft: (id) => {
+    set((s) => ({ drafts: s.drafts.filter((d) => d.id !== id) }));
+    if (activeMode() === "supabase") void repos.scheduling.removeDraft(id);
+  },
 
-  updateDraftShift: (draftId, shiftId, assignedStaffId) =>
+  updateDraftShift: (draftId, shiftId, assignedStaffId) => {
     set((s) => ({
       drafts: s.drafts.map((d) =>
         d.id !== draftId ? d : {
@@ -260,7 +267,9 @@ export const useDemo = create<DemoState>((set, get) => ({
           ),
         },
       ),
-    })),
+    }));
+    if (activeMode() === "supabase") { const d = get().drafts.find((x) => x.id === draftId); if (d) void repos.scheduling.upsertDraft(d); }
+  },
 
   publishDraft: (draftId, publishedBy) => {
     let assignedCount = 0;
@@ -270,10 +279,21 @@ export const useDemo = create<DemoState>((set, get) => ({
       const assigned = draft.shifts.filter((sh) => sh.assignedStaffId);
       assignedCount = assigned.length;
       const newShifts: Shift[] = draft.shifts.map((sh) => ({
-        id: uid("shift"), facilityId: sh.facilityId, position: sh.position, date: sh.date,
+        id: newId(), facilityId: sh.facilityId, position: sh.position, date: sh.date,
         start: sh.start, end: sh.end, assignedStaffId: sh.assignedStaffId,
         status: sh.assignedStaffId ? "published" : "open",
       }));
+      // Persist the published shifts (real UUIDs). assigned_staff_id only when it's a
+      // real roster staff (FK → staff_profiles); otherwise leave the shift open.
+      if (activeMode() === "supabase") {
+        const rosterIds = new Set(get().staffRoster.map((r) => r.id));
+        for (const sh of newShifts) void repos.scheduling.createShift({
+          id: sh.id, facilityId: sh.facilityId, position: sh.position, date: sh.date, start: sh.start, end: sh.end,
+          assignedStaffId: sh.assignedStaffId && rosterIds.has(sh.assignedStaffId) ? sh.assignedStaffId : null,
+          status: sh.status,
+        });
+        void repos.scheduling.upsertDraft({ ...draft, status: "published" });
+      }
       const settings = s.scheduleSettings;
       const messages = [...s.messages];
       if (settings.autoPostToAllTeam) {

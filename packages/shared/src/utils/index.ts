@@ -9,6 +9,18 @@ export function uid(prefix = "id"): string {
   return `${prefix}_${_seq.toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 
+/** A real RFC-4122 UUID — required for records whose id is written to a `uuid` DB
+ *  column and referenced by other rows (facilities, channels, schedule drafts,
+ *  published shifts). A mock `uid()` would fail the uuid column. */
+export function randomUuid(): string {
+  const g = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
+  if (g?.randomUUID) return g.randomUUID();
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
 export function range(n: number): number[] {
   return Array.from({ length: n }, (_, i) => i);
 }

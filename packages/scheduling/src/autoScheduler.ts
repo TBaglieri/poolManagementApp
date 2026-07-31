@@ -1,5 +1,5 @@
 import {
-  shiftDuration, dateKey, uid, staffName,
+  shiftDuration, dateKey, uid, randomUuid, staffName,
   type CertificationType, type ID, type RoleSlug, type ShiftPosition, type StaffProfile,
 } from "@poolops/shared";
 import type {
@@ -214,7 +214,7 @@ export function generateScheduleDraft(input: GenerateInput): ScheduleDraft {
   else if (unfilled.length > 0 || warnings.length > 0) status = "needs_review";
 
   return {
-    id: uid("draft"), facilityId: settings.facilityId, weekStart, status, generatedBy,
+    id: randomUuid(), facilityId: settings.facilityId, weekStart, status, generatedBy,
     generatedAt: new Date().toISOString(), settings, shifts: draftShifts, warnings,
     coverageScore, staffHourTotals, unfilledCount: unfilled.length,
     avoidedConflicts: avoided, suggestedFixes,
