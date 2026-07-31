@@ -5,6 +5,7 @@ export * from "./seed";
 export * from "./labels";
 export * from "./pricing";
 export * from "./chem-months";
+export * from "./checklist-day";
 
 /** Convenience lookup maps over the demo dataset. */
 export const staffById: Record<ID, StaffProfile> = Object.fromEntries(
