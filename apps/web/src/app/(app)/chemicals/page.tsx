@@ -4,11 +4,12 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { FlaskConical, AlertTriangle, CheckCircle2, Beaker } from "lucide-react";
 import {
-  getFacility, staffName,
+  getFacility,
   CHEMICAL_FIELDS, enabledChemicalFields,
   chemMonthKey, chemMonthLabel, chemMonthsForLogs, type ChemicalLog,
 } from "@poolops/shared";
 import { useAccess, useMyStaffId } from "@/lib/access";
+import { useStaffName } from "@/lib/staff-resolve";
 import { useDemo } from "@/lib/store";
 import { useTenantSeed, useFacilityNames } from "@/lib/tenant-data";
 import { useTenantConfig } from "@/lib/tenant/provider";
@@ -53,6 +54,7 @@ const CRITICAL_KEYS = ["freeChlorine", "combinedChlorine", "ph"];
 export default function ChemicalsPage() {
   const { can, staff: me, facilityId } = useAccess();
   const myStaffId = useMyStaffId();
+  const resolveName = useStaffName();
   const { facilities, pools } = useTenantSeed();
   const facName = useFacilityNames();
   // Single-facility tenant → auto-select it and hide facility pickers entirely.
@@ -247,7 +249,7 @@ export default function ChemicalsPage() {
                     const val = (c as unknown as Record<string, number>)[f.key];
                     return <td key={f.key} className={`px-2 py-2.5 text-right ${flagged ? "font-bold text-rose-600" : "text-slate-600"}`}>{typeof val === "number" && Number.isFinite(val) ? val : "—"}</td>;
                   })}
-                  <td className="px-3 py-2.5"><p className="text-slate-600">{staffName(c.recordedBy)}</p><p className="text-xs text-slate-400">{fmtInTz(takenOf(c), tz, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</p></td>
+                  <td className="px-3 py-2.5"><p className="text-slate-600">{resolveName(c.recordedBy)}</p><p className="text-xs text-slate-400">{fmtInTz(takenOf(c), tz, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</p></td>
                 </tr>
               ))}
             </tbody>

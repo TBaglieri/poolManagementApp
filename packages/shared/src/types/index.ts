@@ -406,6 +406,9 @@ export interface Channel {
   createdBy?: ID;
   /** Explicit member roster for group chats and DMs (staff_profiles.ids). */
   memberIds?: ID[];
+  /** Transient: raw channel_members.profile_ids from the DB, reverse-mapped to
+   *  memberIds (staff ids) on hydrate via the staff roster. Not persisted in-store. */
+  memberProfileIds?: ID[];
 }
 
 export type MessageKind =

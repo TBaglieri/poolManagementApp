@@ -16,7 +16,7 @@ import {
   facilities as seedFacilities, pools as seedPools, DEFAULT_CHEMICAL_RANGES, flagOutOfRange,
   canCreateGroupChat, canSendDirectMessage, canToggleDirectMessages, canManageChatMembers,
   messageNotification, shouldNotifyMember,
-  type Channel, type RoleSlug,
+  type Channel, type RoleSlug, type StaffProfile,
 } from "@poolops/shared";
 import type { ScheduleDraft } from "@poolops/scheduling";
 import { repos, activeMode } from "./repos";
@@ -39,6 +39,12 @@ export interface PostOptions {
 const clone = <T,>(v: T): T =>
   typeof structuredClone === "function" ? structuredClone(v) : JSON.parse(JSON.stringify(v));
 
+/** Resolve a staff_profiles.id → its linked auth profile id (StaffProfile.userId)
+ *  via the hydrated roster — how chat membership writes reach channel_members. */
+function profileIdFor(roster: StaffProfile[], staffId: ID): string | null {
+  return roster.find((s) => s.id === staffId)?.userId || null;
+}
+
 interface DemoState {
   /**
    * The tenant's facilities + pools live in the store (not just static seed data)
@@ -50,6 +56,10 @@ interface DemoState {
    */
   facilities: Facility[];
   pools: Pool[];
+  /** Real staff roster (hydrated from Supabase). Empty in mock/demo (seed roster is
+   *  used there). Carries userId = the linked auth profile id, so chat membership and
+   *  actor names can map staff ⇄ profile. */
+  staffRoster: StaffProfile[];
   /** Create a facility (+ a default Main Pool so chem logging works immediately). */
   addFacility: (input: Omit<Facility, "id">) => string;
   timeOff: TimeOffRequest[];
@@ -144,7 +154,7 @@ interface DemoState {
   hydrate: (partial: Partial<Pick<DemoState,
     "messages" | "channels" | "chemicals" | "issues" | "notifications" | "clock"
     | "timeOff" | "trades" | "shifts" | "facilities" | "pools"
-    | "reports" | "patron" | "checklists" | "checklistTemplates">>) => void;
+    | "reports" | "patron" | "checklists" | "checklistTemplates" | "staffRoster">>) => void;
   /** True once the bundled demo dataset has been loaded (demo tenant only). */
   seeded: boolean;
   /**
@@ -190,6 +200,7 @@ export const useDemo = create<DemoState>((set, get) => ({
   dmsDisabled: false,
   facilities: [],
   pools: [],
+  staffRoster: [],
   seeded: false,
 
   seedDemo: () => set((s) => (s.seeded ? {} : { ...demoSeed(), seeded: true })),
@@ -498,7 +509,14 @@ export const useDemo = create<DemoState>((set, get) => ({
       createdBy, memberIds: members, organizationId, unread: 0,
     };
     set((s) => ({ channels: [channel, ...s.channels] }));
-    if (activeMode() === "supabase") void repos.chat.createGroupChat?.({ id, name: trimmed, description, memberIds: members, createdBy, organizationId });
+    if (activeMode() === "supabase") {
+      // Persist OTHER members by their profile id (the creator is added by a DB
+      // trigger). Unresolvable staff (no linked profile) are skipped.
+      const roster = get().staffRoster;
+      const memberProfileIds = members.filter((m) => m !== createdBy)
+        .map((m) => profileIdFor(roster, m)).filter((x): x is string => !!x);
+      void repos.chat.createGroupChat?.({ name: trimmed, description, memberProfileIds });
+    }
     return { ok: true as const, id };
   },
 
@@ -522,7 +540,10 @@ export const useDemo = create<DemoState>((set, get) => ({
       createdBy: fromStaffId, memberIds: [fromStaffId, toStaffId], organizationId, unread: 0,
     };
     set((s) => ({ channels: [channel, ...s.channels] }));
-    if (activeMode() === "supabase") void repos.chat.createDirectChat?.({ id, fromStaffId, toStaffId, organizationId });
+    if (activeMode() === "supabase") {
+      const toProfileId = profileIdFor(get().staffRoster, toStaffId);
+      if (toProfileId) void repos.chat.createDirectChat?.({ toProfileId });
+    }
     return { ok: true as const, id };
   },
 
@@ -533,7 +554,10 @@ export const useDemo = create<DemoState>((set, get) => ({
       channels: s.channels.map((c) =>
         c.id === channelId ? { ...c, memberIds: Array.from(new Set([...(c.memberIds ?? []), staffId])) } : c),
     }));
-    if (activeMode() === "supabase") void repos.chat.addChannelMember?.(channelId, staffId);
+    if (activeMode() === "supabase") {
+      const pid = profileIdFor(get().staffRoster, staffId);
+      if (pid) void repos.chat.addChannelMember?.(channelId, pid);
+    }
     return true;
   },
 
@@ -545,7 +569,10 @@ export const useDemo = create<DemoState>((set, get) => ({
       channels: s.channels.map((c) =>
         c.id === channelId ? { ...c, memberIds: (c.memberIds ?? []).filter((m) => m !== staffId) } : c),
     }));
-    if (activeMode() === "supabase") void repos.chat.removeChannelMember?.(channelId, staffId);
+    if (activeMode() === "supabase") {
+      const pid = profileIdFor(get().staffRoster, staffId);
+      if (pid) void repos.chat.removeChannelMember?.(channelId, pid);
+    }
     return true;
   },
 

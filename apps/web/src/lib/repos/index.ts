@@ -209,7 +209,11 @@ export const repos = {
 
   staff: {
     list: () => selectOr<any, StaffProfile>("staff_profiles", seedStaff, (r) => ({
-      ...seedStaff[0], id: s(r.id), orgId: s(r.organization_id), firstName: s(r.first_name ?? seedStaff[0].firstName),
+      ...seedStaff[0], id: s(r.id), orgId: s(r.organization_id),
+      // userId = the linked auth profile id (staff_profiles.profile_id). This is the
+      // staff↔profile bridge used to write channel_members (profile ids) and to
+      // resolve reloaded actor ids (auth uid) back to a staff name.
+      userId: s(r.profile_id), firstName: s(r.first_name ?? seedStaff[0].firstName),
       lastName: s(r.last_name ?? ""), title: s(r.title), primaryRole: r.primary_role ?? "lifeguard",
       roles: arr(r.roles), homeFacilityId: s(r.home_facility_id), facilityIds: arr(r.facility_ids),
       age: n(r.age), isMinor: b(r.is_minor), preferredHoursPerWeek: n(r.preferred_hours_per_week),
@@ -218,7 +222,22 @@ export const repos = {
   },
 
   chat: {
-    listChannels: () => selectOr<any, Channel>("channels", seedChannels, mapChannel),
+    async listChannels() {
+      const base = await selectOr<any, Channel>("channels", seedChannels, mapChannel);
+      if (base.source !== "supabase") return base;
+      const client = db();
+      if (!client) return base;
+      try {
+        // Attach each channel's member profile-ids (reverse-mapped to staff ids on hydrate).
+        const { data: members } = await client.from("channel_members").select("channel_id, profile_id");
+        const byChannel = new Map<string, string[]>();
+        for (const m of (members ?? []) as Array<{ channel_id: string; profile_id: string }>) {
+          const list = byChannel.get(m.channel_id) ?? [];
+          list.push(m.profile_id); byChannel.set(m.channel_id, list);
+        }
+        return { ...base, data: base.data.map((c) => ({ ...c, memberProfileIds: byChannel.get(c.id) ?? [] })) };
+      } catch { return base; }
+    },
     listMessages: () => selectOr<any, Message>("messages", seedMessages, mapMessage, (q) => q.order("created_at", { ascending: true })),
     async postMessage(channelId: string, _senderId: string, body: string, opts: Partial<Message> = {}) {
       // sender_id omitted → trigger sets auth.uid() (messages_post RLS requires it,
@@ -233,19 +252,21 @@ export const repos = {
     // mode these no-op; in supabase mode RLS (supabase/chat.sql) enforces who may
     // create/join, so a lifeguard can't create a group chat via a raw call.
     // organization_id and created_by are omitted on purpose — DB triggers stamp the
-    // caller's real org id and auth.uid() (see org-defaults.sql / insert-actor.sql),
-    // so the mock-mode tenant slug / staff id never leaks into a uuid/FK column. An
-    // AFTER INSERT trigger (chat.sql) adds the creator to channel_members, so the
-    // creator's chat is visible on reload without the client knowing profile ids.
-    // NOTE: adding OTHER members needs a staff_id→profile_id resolution (roster
-    // carries profile_id); tracked in FIX6_AUDIT.md.
-    async createGroupChat(input: { id: string; name: string; description?: string; memberIds: string[]; createdBy: string; organizationId?: string }) {
-      await insertOr("channels", {
+    // caller's real org id and auth.uid() (org-defaults.sql / insert-actor.sql), and an
+    // AFTER INSERT trigger (chat.sql) adds the CREATOR to channel_members. The OTHER
+    // members are inserted here by their profile ids (the store resolves staff→profile
+    // via the roster's userId), so a group's full roster persists and reloads.
+    async createGroupChat(input: { name: string; description?: string; memberProfileIds: string[] }) {
+      const created = await insertOr<{ id: string }>("channels", {
         name: input.name, kind: "group", chat_type: "group", description: input.description ?? null,
-      });
+      }, (r) => ({ id: String(r.id) }));
+      const channelId = created.data?.id;
+      if (channelId) for (const pid of input.memberProfileIds) await insertOr("channel_members", { channel_id: channelId, profile_id: pid });
     },
-    async createDirectChat(input: { id: string; fromStaffId: string; toStaffId: string; organizationId?: string }) {
-      await insertOr("channels", { name: "Direct message", kind: "dm", chat_type: "dm" });
+    async createDirectChat(input: { toProfileId: string }) {
+      const created = await insertOr<{ id: string }>("channels", { name: "Direct message", kind: "dm", chat_type: "dm" }, (r) => ({ id: String(r.id) }));
+      const channelId = created.data?.id;
+      if (channelId && input.toProfileId) await insertOr("channel_members", { channel_id: channelId, profile_id: input.toProfileId });
     },
     async addChannelMember(channelId: string, profileId: string) {
       await insertOr("channel_members", { channel_id: channelId, profile_id: profileId });

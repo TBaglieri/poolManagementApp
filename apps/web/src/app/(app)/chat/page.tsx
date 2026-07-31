@@ -7,13 +7,14 @@ import {
   MessageSquarePlus, UserPlus, X, ShieldOff,
 } from "lucide-react";
 import {
-  getStaff, staffName, facilityName, relativeTime, CHANNEL_KIND_LABELS, getRole, staff as roster,
+  getStaff, facilityName, relativeTime, CHANNEL_KIND_LABELS, getRole, staff as roster,
   canCreateGroupChat, canSendDirectMessage, canToggleDirectMessages, canManageChatMembers, canViewChannel,
-  type Message, type Channel, type RoleSlug,
+  type Message, type Channel, type RoleSlug, type StaffProfile,
 } from "@poolops/shared";
 import { useAccess } from "@/lib/access";
 import { useDemo } from "@/lib/store";
 import { useTenantConfig } from "@/lib/tenant/provider";
+import { useStaffResolver } from "@/lib/staff-resolve";
 import { PageHeader } from "@/components/ui/page-header";
 import { StaffAvatar } from "@/components/ui/avatar";
 import { RoleBadge } from "@/components/ui/badge";
@@ -33,6 +34,7 @@ const KIND_ICON: Record<string, { icon: typeof Megaphone; cls: string; label: st
 export default function ChatPage() {
   const { role, can, staffId } = useAccess();
   const config = useTenantConfig();
+  const resolveStaff = useStaffResolver();
   const orgId = config.slug; // tenant scope key (mock); RLS scopes by real org id in supabase mode
   const channels = useDemo((s) => s.channels);
   const messages = useDemo((s) => s.messages);
@@ -45,6 +47,10 @@ export default function ChatPage() {
   const removeChannelMember = useDemo((s) => s.removeChannelMember);
   const setDmsDisabled = useDemo((s) => s.setDmsDisabled);
   const markChannelRead = useDemo((s) => s.markChannelRead);
+  // Real staff roster (Supabase) when available, else the seed roster (demo/mock).
+  // The member picker MUST use real staff so selections resolve to profile ids.
+  const storeRoster = useDemo((s) => s.staffRoster);
+  const people = storeRoster.length ? storeRoster : roster;
 
   const [activeId, setActiveId] = useState("ch_all");
   const [search, setSearch] = useState("");
@@ -75,7 +81,7 @@ export default function ChatPage() {
 
   const pinned = channelMessages.filter((m) => m.pinned);
   const canManage = active ? canManageChatMembers(active, ctx) : false;
-  const members = (active?.memberIds ?? []).map((id) => getStaff(id)).filter(Boolean);
+  const members = (active?.memberIds ?? []).map((id) => resolveStaff(id)).filter(Boolean);
 
   return (
     <div className="space-y-5">
@@ -156,7 +162,7 @@ export default function ChatPage() {
           {/* Member panel for group chats / DMs */}
           {isMemberChat && showMembers && active && (
             <MemberPanel
-              channel={active} canManage={canManage} currentStaffId={staffId}
+              channel={active} canManage={canManage} currentStaffId={staffId} roster={people}
               onAdd={(sid) => addChannelMember(active.id, sid, { staffId, role })}
               onRemove={(sid) => removeChannelMember(active.id, sid, { staffId, role })}
             />
@@ -175,7 +181,7 @@ export default function ChatPage() {
               <p className="py-10 text-center text-sm text-slate-400">No messages yet. Start the conversation below.</p>
             )}
             {channelMessages.map((m) => (
-              <MessageRow key={m.id} message={m} canPin={can("chat.announce")} onPin={() => togglePin(m.id)} />
+              <MessageRow key={m.id} message={m} canPin={can("chat.announce")} onPin={() => togglePin(m.id)} resolveStaff={resolveStaff} />
             ))}
           </div>
 
@@ -189,7 +195,7 @@ export default function ChatPage() {
 
       {composer && (
         <CreateChatModal
-          type={composer} onClose={() => setComposer(null)} currentStaffId={staffId}
+          type={composer} onClose={() => setComposer(null)} currentStaffId={staffId} roster={people}
           onCreateGroup={(name, memberIds) => {
             const res = createGroupChat({ name, memberIds, createdBy: staffId ?? "", creatorRole: role, organizationId: orgId });
             if (res.ok) { setComposer(null); openChannel(res.id); }
@@ -236,13 +242,15 @@ function ChatComposer({ onSend }: { onSend: (body: string) => void }) {
 }
 
 function MemberPanel({
-  channel, canManage, currentStaffId, onAdd, onRemove,
+  channel, canManage, currentStaffId, roster, onAdd, onRemove,
 }: {
-  channel: Channel; canManage: boolean; currentStaffId: string | null;
+  channel: Channel; canManage: boolean; currentStaffId: string | null; roster: StaffProfile[];
   onAdd: (staffId: string) => void; onRemove: (staffId: string) => void;
 }) {
   const memberIds = channel.memberIds ?? [];
   const candidates = roster.filter((s) => !memberIds.includes(s.id));
+  const staffOf = (id: string) => roster.find((x) => x.id === id || x.userId === id) ?? getStaff(id);
+  const nameOf = (id: string) => { const s = staffOf(id); return s ? `${s.firstName} ${s.lastName}`.trim() : "Team member"; };
   const [adding, setAdding] = useState(false);
   return (
     <div className="border-b border-slate-100 bg-slate-50/60 px-5 py-3">
@@ -256,12 +264,12 @@ function MemberPanel({
       </div>
       <ul className="mt-2 flex flex-wrap gap-2">
         {memberIds.map((id) => {
-          const s = getStaff(id);
+          const s = staffOf(id);
           const isCreator = channel.createdBy === id;
           return (
             <li key={id} className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white py-1 pl-1 pr-2 text-xs">
-              <StaffAvatar name={staffName(id)} color={s?.avatarColor ?? "#0E7490"} size="xs" />
-              <span className="font-medium text-slate-700">{staffName(id)}</span>
+              <StaffAvatar name={nameOf(id)} color={s?.avatarColor ?? "#0E7490"} size="xs" />
+              <span className="font-medium text-slate-700">{nameOf(id)}</span>
               {isCreator && <span className="text-[10px] text-slate-400">· owner</span>}
               {canManage && channel.chatType === "group" && !isCreator && id !== currentStaffId && (
                 <button onClick={() => onRemove(id)} className="text-slate-300 hover:text-rose-500" title="Remove"><X className="h-3 w-3" /></button>
@@ -287,11 +295,12 @@ function MemberPanel({
 }
 
 function CreateChatModal({
-  type, onClose, currentStaffId, onCreateGroup, onCreateDm,
+  type, onClose, currentStaffId, roster, onCreateGroup, onCreateDm,
 }: {
   type: "group" | "dm";
   onClose: () => void;
   currentStaffId: string | null;
+  roster: StaffProfile[];
   onCreateGroup: (name: string, memberIds: string[]) => string | null;
   onCreateDm: (toStaffId: string) => string | null;
 }) {
@@ -384,8 +393,9 @@ function CreateChatModal({
   );
 }
 
-function MessageRow({ message: m, canPin, onPin }: { message: Message; canPin: boolean; onPin: () => void }) {
-  const sender = getStaff(m.senderId);
+function MessageRow({ message: m, canPin, onPin, resolveStaff }: { message: Message; canPin: boolean; onPin: () => void; resolveStaff: (id: string | null | undefined) => ReturnType<typeof getStaff> }) {
+  const sender = resolveStaff(m.senderId);
+  const senderName = sender ? `${sender.firstName} ${sender.lastName}`.trim() : "Team member";
   const special = m.kind && KIND_ICON[m.kind];
   const urgent = m.priority === "urgent";
 
@@ -401,7 +411,7 @@ function MessageRow({ message: m, canPin, onPin }: { message: Message; canPin: b
         </div>
         <p className="mt-2 text-sm font-medium text-slate-800">{m.body}</p>
         <div className="mt-2 flex items-center justify-between">
-          <span className="text-xs text-slate-500">{staffName(m.senderId)}</span>
+          <span className="text-xs text-slate-500">{senderName}</span>
           {m.linkUrl && <Link href={m.linkUrl} className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:text-brand-800">View <ArrowRight className="h-3 w-3" /></Link>}
         </div>
       </div>
@@ -410,10 +420,10 @@ function MessageRow({ message: m, canPin, onPin }: { message: Message; canPin: b
 
   return (
     <div className="group flex gap-3">
-      <StaffAvatar name={staffName(m.senderId)} color={sender?.avatarColor ?? "#0E7490"} size="sm" />
+      <StaffAvatar name={senderName} color={sender?.avatarColor ?? "#0E7490"} size="sm" />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-slate-800">{staffName(m.senderId)}</span>
+          <span className="text-sm font-semibold text-slate-800">{senderName}</span>
           {sender && <RoleBadge role={sender.primaryRole} />}
           <span className="text-xs text-slate-400">{relativeTime(m.sentAt)}</span>
           {m.pinned && <Pin className="h-3 w-3 text-amber-500" />}

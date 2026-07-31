@@ -21,7 +21,7 @@ export function SupabaseHydrator() {
       // Re-fetch EVERY slice we persist, so a create/edit/assign that was written to
       // Supabase is still there after a refresh (previously time-off, trades, shifts,
       // and facilities were written but never re-loaded, so they appeared to vanish).
-      const [messages, channels, chemicals, issues, notifications, clock, facilities, shifts, timeOff, trades, reports, patron, checklists, checklistTemplates] = await Promise.all([
+      const [messages, channels, chemicals, issues, notifications, clock, facilities, shifts, timeOff, trades, reports, patron, checklists, checklistTemplates, staff] = await Promise.all([
         repos.chat.listMessages(),
         repos.chat.listChannels(),
         repos.chemicals.list(),
@@ -36,12 +36,25 @@ export function SupabaseHydrator() {
         repos.patron.list(),
         repos.checklists.list(),
         repos.checklistTemplates.list(),
+        repos.staff.list(),
       ]);
       if (!active) return;
 
       const next: Parameters<typeof hydrate>[0] = {};
+      if (staff.source === "supabase" && staff.data.length) next.staffRoster = staff.data;
       if (messages.source === "supabase" && messages.data.length) next.messages = messages.data;
-      if (channels.source === "supabase" && channels.data.length) next.channels = channels.data;
+      if (channels.source === "supabase" && channels.data.length) {
+        // Reverse-map each channel's member profile-ids → staff ids via the roster, so
+        // the app's staff-id membership logic (canViewChannel, member panel) works.
+        const profileToStaff = new Map<string, string>();
+        for (const p of staff.data) if (p.userId) profileToStaff.set(p.userId, p.id);
+        next.channels = channels.data.map((c) => {
+          const pids = (c as { memberProfileIds?: string[] }).memberProfileIds;
+          if (!pids || !pids.length) return c;
+          const memberIds = pids.map((pid) => profileToStaff.get(pid)).filter((x): x is string => !!x);
+          return { ...c, memberIds };
+        });
+      }
       if (chemicals.source === "supabase" && chemicals.data.length) next.chemicals = chemicals.data;
       if (issues.source === "supabase" && issues.data.length) next.issues = issues.data;
       if (notifications.source === "supabase" && notifications.data.length) next.notifications = notifications.data;
