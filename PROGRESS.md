@@ -13,7 +13,7 @@ config; every table has `organization_id`, RLS scopes by `current_org_id()`.
 
 | Fix | Area | Status |
 |---|---|---|
-| 1 | Persistence & button wiring | **IN PROGRESS** — root causes fixed (org-id + actor triggers, hydrator reloads all slices); chem logs, maintenance, facilities(+pool), shift reports, patron, checklists, time-off, trades, shifts, chat messages now persist. Remaining: staff↔profile resolution (other chat members + reloaded names), checklist templates (→ Fix 6), onboarding, schedule drafts, disable-DMs. **Re-run `_run_all.sql`.** |
+| 1 | Persistence & button wiring | **IN PROGRESS** — root causes fixed (org-id + actor triggers, hydrator reloads all slices); chem logs, maintenance, facilities(+pool), shift reports, patron, checklists, checklist templates, time-off, trades, shifts, chat messages + pins now persist. **Reliability fix:** facilities sent a non-existent `image_hint` column (every facility insert failed) → removed; and write failures were silent → now a shell **toast surfaces the exact Postgres error** (so a null organization_id / missing column tells you to run the SQL). Remaining LOCAL-ONLY: staff↔profile resolution (other chat members + reloaded actor names), onboarding, schedule drafts, disable-DMs. **⚠️ Re-run `_run_all.sql`** — persistence needs the triggers/columns. |
 | 2 | Tenant routing (auth) | ✅ DONE — `resolveTenantAndRedirect` on login/reset/invite; Villas reset → Villas, never root. |
 | 3 | Auth UI (logo fill + eye toggle) | ✅ DONE |
 | 4 | Per-tenant config (chem fields + single facility) | ✅ DONE — Villas chem = chlorine+pH; `maxFacilities`=1, button hidden + RLS-enforced (`facility-limit.sql`). |

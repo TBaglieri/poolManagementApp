@@ -472,8 +472,11 @@ export const useDemo = create<DemoState>((set, get) => ({
     }
   },
 
-  togglePinMessage: (id) =>
-    set((s) => ({ messages: s.messages.map((m) => (m.id === id ? { ...m, pinned: !m.pinned } : m)) })),
+  togglePinMessage: (id) => {
+    let next = false;
+    set((s) => ({ messages: s.messages.map((m) => { if (m.id === id) { next = !m.pinned; return { ...m, pinned: next }; } return m; }) }));
+    if (activeMode() === "supabase") void repos.chat.setPinned(id, next); // RLS messages_pin: managers
+  },
 
   setDmsDisabled: (value, actorRole) => {
     if (!canToggleDirectMessages(actorRole)) return false; // Super Admin / Pool Manager only

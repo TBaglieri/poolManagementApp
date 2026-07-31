@@ -254,6 +254,7 @@ export const repos = {
       const client = db();
       if (client) await client.from("channel_members").delete().eq("channel_id", channelId).eq("profile_id", profileId);
     },
+    setPinned: (id: string, pinned: boolean) => updateOr<Message>("messages", id, { pinned }, mapMessage),
   },
 
   notifications: {
