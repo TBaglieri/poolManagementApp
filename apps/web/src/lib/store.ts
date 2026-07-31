@@ -456,9 +456,10 @@ export const useDemo = create<DemoState>((set, get) => ({
         ...s.chemicals,
       ],
     }));
-    if (activeMode() === "supabase") {
+    if (activeMode() === "supabase" && log.facilityId) {
       // recorded_by is omitted → the insert-actor trigger sets it to auth.uid()
       // (it references profiles(id); the app's staff id would violate the FK).
+      // Guarded on facility_id so an empty "" never hits the not-null uuid column.
       void repos.chemicals.create({
         facility_id: log.facilityId, pool_id: log.poolId || null, // null (not "") when no pool → valid uuid column
         free_chlorine: log.freeChlorine, combined_chlorine: log.combinedChlorine, ph: log.ph,

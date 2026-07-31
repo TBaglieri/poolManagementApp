@@ -121,10 +121,16 @@ export default function ChemicalsPage() {
   const isFuture = takenDate.getTime() > Date.now() + 5 * 60_000; // 5-min tolerance
   const tooOld = takenDate.getTime() < Date.now() - 14 * 86_400_000;
 
+  // Robustly resolve the facility/pool the reading attaches to (never an empty id →
+  // a uuid column rejects ""). Falls back to the sole/first facility.
+  const submitFacilityId = form.facilityId || soleFacility?.id || facilities[0]?.id || "";
+  const submitPoolId = form.poolId || pools.find((p) => p.facilityId === submitFacilityId)?.id || "";
+
   const submit = () => {
     if (isFuture) return; // block future timestamps
+    if (!submitFacilityId) return; // can't log a reading with no facility
     const flags = addLog({
-      facilityId: form.facilityId, poolId: form.poolId, recordedBy: myStaffId ?? me?.id ?? "unknown",
+      facilityId: submitFacilityId, poolId: submitPoolId, recordedBy: myStaffId ?? me?.id ?? "unknown",
       takenAt: takenDate.toISOString(),
       freeChlorine: Number(form.freeChlorine), combinedChlorine: Number(form.combinedChlorine),
       ph: Number(form.ph), alkalinity: Number(form.alkalinity), calciumHardness: Number(form.calciumHardness),
@@ -137,7 +143,7 @@ export default function ChemicalsPage() {
   // Open the log modal with the right facility/pool preselected (auto for a single-
   // facility tenant, current-or-first otherwise) so the picker is never a dead end.
   const openLogModal = () => {
-    const fid = defaultFacilityId(facilities, form.facilityId);
+    const fid = defaultFacilityId(facilities, form.facilityId) || soleFacility?.id || facilities[0]?.id || "";
     const pid = pools.find((p) => p.facilityId === fid)?.id ?? "";
     setForm((f) => ({ ...f, facilityId: fid, poolId: pid, takenAt: toLocalInput(new Date()) }));
     setResult(null);
@@ -259,7 +265,7 @@ export default function ChemicalsPage() {
 
       <Modal open={open} onClose={closeModal} title="Log chemical reading" size="lg"
         footer={result === null
-          ? <><Button variant="secondary" onClick={closeModal}>Cancel</Button><Button onClick={submit} icon="Beaker" disabled={isFuture}>Save reading</Button></>
+          ? <><Button variant="secondary" onClick={closeModal}>Cancel</Button><Button onClick={submit} icon="Beaker" disabled={isFuture || !submitFacilityId}>Save reading</Button></>
           : <Button onClick={closeModal}>Done</Button>}>
         {result === null ? (
           <div className="space-y-4">
